@@ -5,15 +5,16 @@ Screens:
       LoadingSpinnerColor: =RGBA(98, 100, 167, 1)
       OnVisible: |-
         =// ===============================
-        // View_Screen.OnVisible (정리본)
+        // View_Screen.OnVisible
         // ===============================
 
         // 0) 화면 상태 변수 초기화
         Set(vw_SelectedDate, Blank());
         Set(vw_StartOfWeek, DateAdd(Today(), -Weekday(Today(), StartOfWeek.Monday) + 1));
+        Set(varViewMode, "팀별");
         Set(varViewLoading, true);
 
-        // 1) 사용자 팀 정보 보강 (혹시 비어있으면)
+        // 1) 사용자 정보 보강
         If(
             IsBlank(varMyTeam),
             Set(varMyTeam, LookUp(UserInfo_DB, 'e-mail' = varMyEmail, 팀))
@@ -25,16 +26,10 @@ Screens:
             ClearCollect(colUsers, UserInfo_DB)
         );
 
-        // 3) 프로젝트 선택이 비어있으면 모드에 맞게 전체 선택
-        If(
-            CountRows(colSelProjects) = 0,
-            ClearCollect(
-                colSelProjects,
-                If(varViewMode = "팀별", colProjectList, colAllProjects)
-            )
-        );
+        // 3) 해제 목록 초기화 (전체 선택 상태로 시작)
+        Clear(colDeselectedProjects_View);
 
-        // 4) ✅ 주간 데이터 로드 — Daily_DB 직접 (날짜 필터 위임 → 그 주 전체 인원 정확히 로드)
+        // 4) 주간 데이터 로드 (Daily_DB 직접 — 날짜 필터 위임 가능)
         ClearCollect(
             colTeamWeekDaily,
             Filter(
@@ -44,7 +39,24 @@ Screens:
             )
         );
 
-        // 5) ✅ TeamMatrix 가공
+        // 5) 팀별 프로젝트 목록 생성 (colTeamWeekDaily 완성 후)
+        ClearCollect(
+            colProjectList,
+            Sort(
+                Distinct(
+                    AddColumns(
+                        Filter(colTeamWeekDaily, !IsBlank(프로젝트명)),
+                        Value,
+                        Trim(프로젝트명)
+                    ),
+                    Value
+                ),
+                Value,
+                SortOrder.Ascending
+            )
+        );
+
+        // 6) 매트릭스 재계산
         ClearCollect(
             colTeamMatrix,
             With(
@@ -52,18 +64,16 @@ Screens:
                 With(
                     {
                         rawRows: If(
-                            CountRows(colSelProjects) = 0,
-                            Filter(baseRows, false),
-                            Filter(baseRows, Trim(프로젝트명) in colSelProjects.Value)
+                            IsEmpty(colDeselectedProjects_View),
+                            baseRows,
+                            Filter(baseRows, !(Trim(프로젝트명) in colDeselectedProjects_View.Value))
                         )
                     },
                     AddColumns(
                         GroupBy(
                             If(
                                 varViewMode = "프로젝트별",
-                                // 프로젝트별: 권한 제한 없이 전 인원
                                 rawRows,
-                                // 팀별: 역할별 권한 제한
                                 Switch(
                                     varMyRole,
                                     "소장",
@@ -75,7 +85,7 @@ Screens:
                                         Filter(
                                             AddColumns(
                                                 rawRows,
-                                                AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
+                                                AuthorRole,     LookUp(colUsers, 이름_한글 = 작성자).직급2,
                                                 AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
                                             ),
                                             AuthorRole = "팀장" && AuthorDivision = varMyDivision
@@ -100,7 +110,7 @@ Screens:
             )
         );
 
-        Set(varViewLoading, false);
+        Set(varViewLoading, false)
     Children:
       - Container1_2:
           Control: GroupContainer@1.5.0
@@ -125,15 +135,7 @@ Screens:
                   Font: =Font.Verdana
                   FontSize: =8
                   Height: =20
-                  Text: |+
-                    =If(
-                        IsBlank(Find("(", User().FullName)), // 괄호가 없는 경우 (이름 양식 2)
-                        Concatenate(
-                            Trim(Right(User().FullName, Len(User().FullName) - Find(" ", User().FullName))), // 공백 이후 성
-                            Trim(Left(User().FullName, Find(" ", User().FullName))) // 공백 이전 이름
-                        ),
-                        Trim(Left(User().FullName, Find("(", User().FullName) - 1)) // 괄호가 있는 경우 (이름 양식 1)
-                    )
+                  Text: =varMyName
                   Width: =35
                   X: =1310
                   Y: =4
@@ -375,127 +377,32 @@ Screens:
                         FocusedBorderColor: =RGBA(98, 100, 167, 1)
                         Height: =28.8
                         HoverFill: =ColorValue("#FD625E10")
-                        OnSelect: |+
-                          =// 달력 셀 클릭 → 그 주(월요일)로 이동 + 주간 컬렉션 재생성
+                        OnSelect: |-
+                          =// 1) 클릭한 날짜의 주 월요일로 이동
                           Set(
                               vw_StartOfWeek,
                               DateAdd(
-                                  ThisItem.Value,                 // 날짜 열 이름(Value 또는 CalDate에 맞추세요)
+                                  ThisItem.Value,
                                   -Weekday(ThisItem.Value, 2) + 1,
                                   TimeUnit.Days
                               )
                           );
 
-                          /* 새 주(월~금) 데이터로 colWeek 갱신 */
+                          // 2) colWeek 갱신 (달력 하이라이트용)
                           ClearCollect(
                               colWeek,
                               Filter(
-                                  colDaily_365_Team,                             // 로컬 1년 캐시
+                                  colDaily_365_Team,
                                   OData__xc791__xc131__xc77c__xc790_ >= vw_StartOfWeek &&
                                   OData__xc791__xc131__xc77c__xc790_ <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days)
                               )
                           );
 
-                          /* 일간 모드는 쓰지 않으므로 Blank 유지 */
+                          // 3) 선택 날짜 초기화
                           Set(vw_SelectedDate, Blank());
-                          // ===============================
-                          // ✅ [주간 조회 데이터 리로드 블록]
-                          // - vw_StartOfWeek 기준으로 데이터 재로딩
-                          // - 프로젝트 선택/권한/요일 컬럼 로직 동일 유지
-                          // ===============================
 
-                          Set(varViewLoading, true);
-
-                          // 1) 사용자 팀 정보 보강 (초기 로딩 이슈 방지)
-                          If(
-                              IsBlank(varMyTeam),
-                              Set(varMyTeam, LookUp(UserInfo_DB, 이름_한글 = name_label.Text).팀)
-                          );
-
-                          // 2) UserInfo 캐시가 비어있으면 로드
-                          If(
-                              IsEmpty(colUsers),
-                              ClearCollect(colUsers, UserInfo_DB)
-                          );
-
-                          // 3) 프로젝트 전체 선택 보강 (기존 기능 유지)
-                          If(
-                              CountRows(colSelProjects) = 0 && CountRows(colProjectList) > 0,
-                              ClearCollect(colSelProjects, colProjectList)
-                          );
-
-                          // 4) ✅ vw_StartOfWeek 주간 데이터 로드 (월~금)
-                          ClearCollect(
-                              colTeamWeekDaily,
-                              Filter(
-                                  Daily_DB,
-                                  작성일자 >= vw_StartOfWeek &&
-                                  작성일자 <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days)
-                              )
-                          );
-
-                          // 5) ✅ TeamMatrix 가공(기능 동일)
-                          ClearCollect(
-                              colTeamMatrix,
-                              With(
-                                  { baseRows: colTeamWeekDaily },
-                                  With(
-                                      {
-                                          rawRows:
-                                              If(
-                                                  CountRows(colSelProjects) = 0,
-                                                  Filter(baseRows, false),
-                                                  Filter(baseRows, 프로젝트명 in colSelProjects.Value)
-                                              )
-                                      },
-                                      AddColumns(
-                                          GroupBy(
-                                              If(
-                                                  varViewMode = "프로젝트별",
-                                                  rawRows,
-                                                  Switch(
-                                                      varMyRole,
-                                                      "소장",
-                                                          Filter(
-                                                              AddColumns(
-                                                                  rawRows,
-                                                                  AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2
-                                                              ),
-                                                              AuthorRole = "팀장"
-                                                          ),
-                                                      "부문장",
-                                                          Filter(
-                                                              AddColumns(
-                                                                  rawRows,
-                                                                  AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
-                                                                  AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
-                                                              ),
-                                                              AuthorRole = "팀장" && AuthorDivision = varMyDivision
-                                                          ),
-                                                      Filter(
-                                                          AddColumns(
-                                                              rawRows,
-                                                              AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀
-                                                          ),
-                                                          AuthorTeam = varMyTeam
-                                                      )
-                                                  )
-                                              ),
-                                              작성자,
-                                              Rows
-                                          ),
-                                          첫업무제목, If(!IsEmpty(Rows), First(Rows).업무제목, ""),
-                                          Mon, Filter(Rows, Weekday(작성일자, 2) = 1),
-                                          T,   Filter(Rows, Weekday(작성일자, 2) = 2),
-                                          W,   Filter(Rows, Weekday(작성일자, 2) = 3),
-                                          Th,  Filter(Rows, Weekday(작성일자, 2) = 4),
-                                          F,   Filter(Rows, Weekday(작성일자, 2) = 5)
-                                      )
-                                  )
-                              )
-                          );
-
-                          Set(varViewLoading, false);
+                          // 4) 데이터 전체 재계산 (colTeamWeekDaily + colProjectList + colSelProjects + colTeamMatrix)
+                          Select(btnRecalcMatrix)
                         PressedFill: =ColorValue("#FD625E30")
                         Width: =46
                         X: =3
@@ -556,35 +463,9 @@ Screens:
                   FontWeight: =FontWeight.Normal
                   Height: =21
                   IconStyle: ='ButtonCanvas.IconStyle'.Filled
-                  OnSelect: |+
-                    =/* 1) 이번 달 1일로 이동 (달력 갱신용) */
-                    Set(
-                        varFirstDayOfMonth,
-                        Date( Year(Today()), Month(Today()), 1 )
-                    );
-
-                    /* 2) 주간 모드 → 일간 변수는 비워 둡니다 */
-                    Set( vw_SelectedDate, Blank() );
-
-                    /* 3) 이번 주의 월요일 계산 */
-                    Set(
-                        vw_StartOfWeek,
-                        DateAdd(
-                            Today(),
-                            -Weekday( Today(), StartOfWeek.Monday ) + 1,
-                            TimeUnit.Days
-                        )
-                    );
-
-                    /* 4) 이번 주(월~금) 데이터 컬렉션 재생성 → 매트릭스·달력 즉시 갱신 */
-                    ClearCollect(
-                        colWeek,
-                        Filter(
-                            colDaily_365_Team,                              // 로컬 1년 캐시
-                            OData__xc791__xc131__xc77c__xc790_ >= vw_StartOfWeek &&
-                            OData__xc791__xc131__xc77c__xc790_ <= DateAdd( vw_StartOfWeek, 4, TimeUnit.Days )
-                        )//,ID
-                    );
+                  OnSelect: |-
+                    =Set(vw_StartOfWeek, DateAdd(Today(), -(Weekday(Today(), StartOfWeek.Monday) - 1), TimeUnit.Days));
+                    Select(btnRecalcMatrix)
                   Text: ="이번주"
                   Width: =65
                   X: =263
@@ -663,14 +544,8 @@ Screens:
                   HoverFill: =RGBA(0, 0, 0, 0)
                   Icon: =Icon.ChevronLeft
                   OnSelect: |-
-                    =// 이전 주
-                    Set(vw_StartOfWeek, DateAdd(vw_StartOfWeek, -7, TimeUnit.Days));
-                    ClearCollect(
-                        colWeek,
-                        Filter(colDaily_365_Team,
-                            OData__xc791__xc131__xc77c__xc790_ >= vw_StartOfWeek &&
-                            OData__xc791__xc131__xc77c__xc790_ <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days))
-                    );
+                    =Set(vw_StartOfWeek, DateAdd(vw_StartOfWeek, -7, TimeUnit.Days));
+                    Select(btnRecalcMatrix)
                   PaddingBottom: =3
                   PaddingLeft: =3
                   PaddingRight: =3
@@ -695,14 +570,8 @@ Screens:
                   HoverFill: =RGBA(0, 0, 0, 0)
                   Icon: =Icon.ChevronRight
                   OnSelect: |-
-                    =// 다음 주
-                    Set(vw_StartOfWeek, DateAdd(vw_StartOfWeek, 7, TimeUnit.Days));
-                    ClearCollect(
-                        colWeek,
-                        Filter(colDaily_365_Team,
-                            OData__xc791__xc131__xc77c__xc790_ >= vw_StartOfWeek &&
-                            OData__xc791__xc131__xc77c__xc790_ <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days))
-                    );
+                    =Set(vw_StartOfWeek, DateAdd(vw_StartOfWeek, 7, TimeUnit.Days));
+                    Select(btnRecalcMatrix)
                   PaddingBottom: =3
                   PaddingLeft: =3
                   PaddingRight: =3
@@ -1425,7 +1294,11 @@ Screens:
                   Items: |-
                     =With(
                         {
-                            src: colProjectList,  // 팀별/프로젝트별 모두 동일 소스
+                            src: If(
+                                tgl_ViewMode.Selected.Value = "팀별",
+                                colProjectList,
+                                colAllProjects
+                            ),
                             key: Lower(Substitute(txtProjSearch.Value, " ", ""))
                         },
                         If(
@@ -1433,10 +1306,7 @@ Screens:
                             src,
                             Filter(
                                 src,
-                                Find(
-                                    key,
-                                    Lower(Substitute(Value, " ", ""))
-                                ) > 0
+                                Find(key, Lower(Substitute(Value, " ", ""))) > 0
                             )
                         )
                     )
@@ -1454,173 +1324,27 @@ Screens:
                   - chkProj:
                       Control: CheckBox@0.0.30
                       Properties:
-                        Checked: =ThisItem.Value in colSelProjects.Value
+                        Checked: =IsBlank(LookUp(colDeselectedProjects_View, Value = ThisItem.Value))
                         Font: =Font.Verdana
                         FontSize: =11
                         Label: =ThisItem.Value
-                        OnCheck: |-
-                          =Collect(colSelProjects, {Value: ThisItem.Value});
-                          ClearCollect(
-                              colTeamMatrix,
-                              With(
-                                  { baseRows: colTeamWeekDaily },
-                                  With(
-                                      {
-                                          rawRows: Filter(baseRows, 프로젝트명 in colSelProjects.Value)
-                                      },
-                                      AddColumns(
-                                          GroupBy(
-                                              Switch(
-                                                  varMyRole,
-                                                  "소장",
-                                                      Filter(
-                                                          AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
-                                                          AuthorRole = "팀장"
-                                                      ),
-                                                  "부문장",
-                                                      Filter(
-                                                          AddColumns(
-                                                              rawRows,
-                                                              AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
-                                                              AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
-                                                          ),
-                                                          AuthorRole = "팀장" && AuthorDivision = varMyDivision
-                                                      ),
-                                                  Filter(
-                                                      AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
-                                                      AuthorTeam = varMyTeam
-                                                  )
-                                              ),
-                                              작성자,
-                                              Rows
-                                          ),
-                                          첫업무제목, If(!IsEmpty(Rows), First(Rows).업무제목, ""),
-                                          Mon, Filter(Rows, Weekday(작성일자, 2) = 1),
-                                          T,   Filter(Rows, Weekday(작성일자, 2) = 2),
-                                          W,   Filter(Rows, Weekday(작성일자, 2) = 3),
-                                          Th,  Filter(Rows, Weekday(작성일자, 2) = 4),
-                                          F,   Filter(Rows, Weekday(작성일자, 2) = 5)
-                                      )
-                                  )
-                              )
-                          );
+                        OnCheck: =RemoveIf(colDeselectedProjects_View, Value = ThisItem.Value)
                         OnSelect: =Select(Parent)
                         OnUncheck: |-
-                          =RemoveIf(colSelProjects, Value = ThisItem.Value);
-                          ClearCollect(
-                              colTeamMatrix,
-                              With(
-                                  { baseRows: colTeamWeekDaily },
-                                  With(
-                                      {
-                                          rawRows: Filter(baseRows, 프로젝트명 in colSelProjects.Value)
-                                      },
-                                      AddColumns(
-                                          GroupBy(
-                                              Switch(
-                                                  varMyRole,
-                                                  "소장",
-                                                      Filter(
-                                                          AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
-                                                          AuthorRole = "팀장"
-                                                      ),
-                                                  "부문장",
-                                                      Filter(
-                                                          AddColumns(
-                                                              rawRows,
-                                                              AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
-                                                              AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
-                                                          ),
-                                                          AuthorRole = "팀장" && AuthorDivision = varMyDivision
-                                                      ),
-                                                  Filter(
-                                                      AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
-                                                      AuthorTeam = varMyTeam
-                                                  )
-                                              ),
-                                              작성자,
-                                              Rows
-                                          ),
-                                          첫업무제목, If(!IsEmpty(Rows), First(Rows).업무제목, ""),
-                                          Mon, Filter(Rows, Weekday(작성일자, 2) = 1),
-                                          T,   Filter(Rows, Weekday(작성일자, 2) = 2),
-                                          W,   Filter(Rows, Weekday(작성일자, 2) = 3),
-                                          Th,  Filter(Rows, Weekday(작성일자, 2) = 4),
-                                          F,   Filter(Rows, Weekday(작성일자, 2) = 5)
-                                      )
-                                  )
-                              )
-                          );
+                          =Collect(colDeselectedProjects_View, {Value: ThisItem.Value})
                         Width: =253
                         X: =16
                         Y: =4
             - chkAll:
                 Control: CheckBox@0.0.30
                 Properties:
-                  Checked: |-
-                    =With(
-                        { tgt: If(varViewMode = "팀별", colProjectList, colAllProjects) },
-                        CountRows(tgt) > 0 &&
-                        CountRows(colSelProjects) >= CountRows(tgt)
-                    )
+                  Checked: =IsEmpty(colDeselectedProjects_View)
                   Font: =Font.Verdana
                   FontSize: =11
                   FontWeight: =FontWeight.Semibold
                   Label: ="전체 선택/해제"
-                  OnCheck: |-
-                    =// chkAll.OnCheck
-                    With(
-                        { tgt: If(varViewMode = "팀별", colProjectList, colAllProjects) },
-                        ClearCollect(colSelProjects, tgt);
-                    );
-                    ClearCollect(
-                        colTeamMatrix,
-                        With(
-                            { baseRows: colTeamWeekDaily },
-                            With(
-                                {
-                                    rawRows: Filter(baseRows, 프로젝트명 in colSelProjects.Value)
-                                },
-                                AddColumns(
-                                    GroupBy(
-                                        Switch(
-                                            varMyRole,
-                                            "소장",
-                                                Filter(
-                                                    AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
-                                                    AuthorRole = "팀장"
-                                                ),
-                                            "부문장",
-                                                Filter(
-                                                    AddColumns(
-                                                        rawRows,
-                                                        AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
-                                                        AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
-                                                    ),
-                                                    AuthorRole = "팀장" && AuthorDivision = varMyDivision
-                                                ),
-                                            Filter(
-                                                AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
-                                                AuthorTeam = varMyTeam
-                                            )
-                                        ),
-                                        작성자,
-                                        Rows
-                                    ),
-                                    첫업무제목, If(!IsEmpty(Rows), First(Rows).업무제목, ""),
-                                    Mon, Filter(Rows, Weekday(작성일자, 2) = 1),
-                                    T,   Filter(Rows, Weekday(작성일자, 2) = 2),
-                                    W,   Filter(Rows, Weekday(작성일자, 2) = 3),
-                                    Th,  Filter(Rows, Weekday(작성일자, 2) = 4),
-                                    F,   Filter(Rows, Weekday(작성일자, 2) = 5)
-                                )
-                            )
-                        )
-                    );
-                  OnUncheck: |-
-                    =// chkAll.OnUncheck
-                    Clear(colSelProjects);
-                    ClearCollect(colTeamMatrix, Table());
+                  OnCheck: =Clear(colDeselectedProjects_View)
+                  OnUncheck: =ClearCollect(colDeselectedProjects_View, gal_ProjectFilter.AllItems)
                   X: =33
                   Y: =38
             - tgl_ViewMode:
@@ -1635,15 +1359,16 @@ Screens:
                   Layout: ='RadioGroupCanvas.Layout'.Horizontal
                   OnChange: |-
                     =Set(varViewMode, Self.Selected.Value);
+
                     ClearCollect(
                         colSelProjects,
                         If(
-                            varViewMode = "팀별",
+                            Self.Selected.Value = "팀별",
                             colProjectList,
                             colAllProjects
                         )
                     );
-                    // colTeamMatrix 재계산
+
                     ClearCollect(
                         colTeamMatrix,
                         With(
@@ -1653,30 +1378,34 @@ Screens:
                                     rawRows: If(
                                         CountRows(colSelProjects) = 0,
                                         Filter(baseRows, false),
-                                        Filter(baseRows, 프로젝트명 in colSelProjects.Value)
+                                        Filter(baseRows, Trim(프로젝트명) in colSelProjects.Value)
                                     )
                                 },
                                 AddColumns(
                                     GroupBy(
-                                        Switch(
-                                            varMyRole,
-                                            "소장",
-                                                Filter(
-                                                    AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
-                                                    AuthorRole = "팀장"
-                                                ),
-                                            "부문장",
-                                                Filter(
-                                                    AddColumns(
-                                                        rawRows,
-                                                        AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
-                                                        AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
+                                        If(
+                                            Self.Selected.Value = "프로젝트별",
+                                            rawRows,
+                                            Switch(
+                                                varMyRole,
+                                                "소장",
+                                                    Filter(
+                                                        AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
+                                                        AuthorRole = "팀장"
                                                     ),
-                                                    AuthorRole = "팀장" && AuthorDivision = varMyDivision
-                                                ),
-                                            Filter(
-                                                AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
-                                                AuthorTeam = varMyTeam
+                                                "부문장",
+                                                    Filter(
+                                                        AddColumns(
+                                                            rawRows,
+                                                            AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2,
+                                                            AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
+                                                        ),
+                                                        AuthorRole = "팀장" && AuthorDivision = varMyDivision
+                                                    ),
+                                                Filter(
+                                                    AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
+                                                    AuthorTeam = varMyTeam
+                                                )
                                             )
                                         ),
                                         작성자,
@@ -2157,15 +1886,94 @@ Screens:
                         Width: =80
                         X: =757
                         Y: =15
-      - Button1:
+      - btnRecalcMatrix:
           Control: ModernButton@1.0.0
           Properties:
             OnSelect: |-
-              =Notify(
-                  "365_All: " & CountRows(colDaily_365_All) &
-                  " / 작성자수: " & CountRows(Distinct(colDaily_365_All, 작성자)) &
-                  " / 우리팀외작성자: " & CountRows(Filter(Distinct(colDaily_365_All, 작성자), Value <> varMyName)),
-                  NotificationType.Information
-              )
-            X: =40
-            Y: =40
+              =Clear(colDeselectedProjects_View);
+
+              // 1) 주간 데이터 재로드
+              ClearCollect(
+                  colTeamWeekDaily,
+                  Filter(
+                      Daily_DB,
+                      작성일자 >= vw_StartOfWeek &&
+                      작성일자 <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days)
+                  )
+              );
+
+              // 2) 팀별 프로젝트 목록 재계산
+              ClearCollect(
+                  colProjectList,
+                  Sort(
+                      Distinct(
+                          AddColumns(
+                              Filter(colTeamWeekDaily, !IsBlank(프로젝트명)),
+                              Value,
+                              Trim(프로젝트명)
+                          ),
+                          Value
+                      ),
+                      Value,
+                      SortOrder.Ascending
+                  )
+              );
+
+              // 3) 전체 선택으로 초기화 (항상 전체 체크 상태로)
+              ClearCollect(colSelProjects, colProjectList);
+
+              // 4) 매트릭스 재계산
+              ClearCollect(
+                  colTeamMatrix,
+                  With(
+                      { baseRows: colTeamWeekDaily },
+                      With(
+                          {
+                      rawRows: If(
+                          IsEmpty(colDeselectedProjects_View),
+                          baseRows,
+                          Filter(baseRows, !(Trim(프로젝트명) in colDeselectedProjects_View.Value))
+                      )
+                          },
+                          AddColumns(
+                              GroupBy(
+                                  If(
+                                      varViewMode = "프로젝트별",
+                                      rawRows,
+                                      Switch(
+                                          varMyRole,
+                                          "소장",
+                                              Filter(
+                                                  AddColumns(rawRows, AuthorRole, LookUp(colUsers, 이름_한글 = 작성자).직급2),
+                                                  AuthorRole = "팀장"
+                                              ),
+                                          "부문장",
+                                              Filter(
+                                                  AddColumns(
+                                                      rawRows,
+                                                      AuthorRole,     LookUp(colUsers, 이름_한글 = 작성자).직급2,
+                                                      AuthorDivision, LookUp(colUsers, 이름_한글 = 작성자).부문
+                                                  ),
+                                                  AuthorRole = "팀장" && AuthorDivision = varMyDivision
+                                              ),
+                                          Filter(
+                                              AddColumns(rawRows, AuthorTeam, LookUp(colUsers, 이름_한글 = 작성자).팀),
+                                              AuthorTeam = varMyTeam
+                                          )
+                                      )
+                                  ),
+                                  작성자,
+                                  Rows
+                              ),
+                              첫업무제목, If(!IsEmpty(Rows), First(Rows).업무제목, ""),
+                              Mon, Filter(Rows, Weekday(작성일자, 2) = 1),
+                              T,   Filter(Rows, Weekday(작성일자, 2) = 2),
+                              W,   Filter(Rows, Weekday(작성일자, 2) = 3),
+                              Th,  Filter(Rows, Weekday(작성일자, 2) = 4),
+                              F,   Filter(Rows, Weekday(작성일자, 2) = 5)
+                          )
+                      )
+                  )
+              );
+            Visible: =false
+            X: =658
