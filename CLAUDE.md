@@ -16,6 +16,7 @@
 5. **컬럼명은 문자열로 감싸지 않는다.** `Filter(테이블, 작성자 in ...)` 처럼 컬럼을 직접 참조한다. `"작성자"` 처럼 쌍따옴표로 감싸면 문자열 비교가 되어 필터가 깨진다.
 6. **속성값은 한 줄씩 명확히 준다.** `X=465/Y=124` 같은 함축 표기 금지. 컨트롤 타입·이름·X·Y·Width·Height를 각각 별도 줄로. UI 작업은 STEP별로 적용 → 스크린샷 확인 → 다음 단계로 진행한다.
 7. **내가 준 주석/안내 줄을 그대로 붙여넣는 경우가 있다.** 코드를 줄 때 "이 줄은 지워라" 같은 안내가 실제 코드에 섞이지 않도록, 붙여넣을 최종 코드만 깔끔하게 준다. (다음주 이동 버튼에서 `+7` 후 `-7` 주석이 같이 들어가 제자리로 돌아간 사고 있었음)
+8. **코드가 여러 번 수정되며 꼬이면, 사용자에게 현재 전체 코드를 받아 처음부터 통짜로 다시 준다.** 부분 수정 지시가 누적되면 중복·순서 꼬임이 생긴다. (View_Screen.OnVisible에서 실제로 겪음)
 
 ---
 
@@ -64,7 +65,7 @@ Project_DB (프로젝트 마스터)
 | ID | Int | PK |
 | 상태 | Text | 시작전 / 진행중 / 완료 |
 | 연구비_계정 | Text | 개발비 등 |
-| 업무_계정 | Text | 제품개발/기술개발/원가절감/설계변경/TF/교육/기타업무/연차(반차)/출장/**연구관리** |
+| 업무_계정 | Text | 제품개발/기술개발/원가절감/설계변경/TF/교육/기타업무/연차(반차)/출장/연구관리 |
 | 프로젝트명 | Text | |
 | PM | Text | |
 | 관련기종명 | Text | |
@@ -89,7 +90,7 @@ Project_DB (프로젝트 마스터)
 | 상태 | Text | 시작전 / 진행중 / 완료 |
 | 상세_업무내용 | Text | |
 
-> ⚠️ **`Distinct`·`in` 연산자는 위임 불가.** Task_DB(2,500건+)에서 `Distinct(...)`나 `작성자 in colXxx.이름_한글` 으로 필터하면 앞 500~2,000건만 로컬 처리되어 **최근 등록 데이터가 누락**된다. (이번 세션에서 프로젝트 목록 일부 누락으로 겪음) → 단일 작성자 비교(`작성자 = varMyName`)는 위임 가능하므로 우선 사용.
+> ⚠️ **`Distinct`·`in` 연산자는 위임 불가.** Task_DB(2,500건+)에서 `Distinct(...)`나 `작성자 in colXxx.이름_한글` 으로 필터하면 앞 500~2,000건만 로컬 처리되어 **최근 등록 데이터가 누락**된다. → colProjectList를 Task_DB에서 뽑던 방식을 폐기하고 colTeamWeekDaily 기반으로 전환함(§8 참고).
 
 ### Daily_DB — 일일 업무일지 (월 ~3,800건, 연 ~45,000건+) ⚠️ 대용량
 | 컬럼명 | 타입 | 설명 |
@@ -131,7 +132,7 @@ Project_DB (프로젝트 마스터)
 
 - 부문은 **Function**과 **Project** 2개, 각 부문에 부문장 1명씩.
 - 권한 판단 변수: `varMyRole`(직급2), `varMyTeam`(팀), `varMyDivision`(부문).
-- ⚠️ **팀원도 팀 전체를 본다.** (이번 세션에서 "본인만"→"팀 전체"로 변경. `colTargetAuthors`의 default 분기를 `Filter(colUsers, 팀 = varMyTeam)`로 수정)
+- ⚠️ **팀원도 팀 전체를 본다.** `colTargetAuthors`의 default 분기가 `Filter(colUsers, 팀 = varMyTeam)`.
 
 ---
 
@@ -154,9 +155,10 @@ Project_DB (프로젝트 마스터)
 | `varAutoHour` / `locAutoHour` | Number | 연차/반차 작업시간 자동 입력값 (전역/로컬 동기화) |
 | `varShowProjectModal` | Boolean | 프로젝트 관리 모달 표시 |
 | `varShowDeleteConfirm` | Boolean | 프로젝트 삭제 확인 |
+| `varViewLoading` | Boolean | View_Screen 로딩 스피너 |
 | `varShowToast` / `varShowToast2` | Boolean | 토스트 알림 |
 
-> ⚠️ **`varMyRole` 세팅은 반드시 이메일 기준 LookUp으로.** `User().FullName` 파싱이나 `name_label.Text`에 의존하면 안 됨. App.OnStart에서 `varMyEmail` 세팅 직후에 `varMyRole`, `varMyTeam`, `varMyDivision`을 확정할 것.
+> ⚠️ **`varMyRole` 세팅은 반드시 이메일 기준 LookUp으로.** `User().FullName` 파싱이나 `name_label.Text`에 의존하면 안 됨.
 
 ---
 
@@ -164,33 +166,21 @@ Project_DB (프로젝트 마스터)
 
 | 컬렉션명 | 출처 | 설명 |
 |----------|------|------|
-| `colUsers` | UserInfo_DB | 사용자 캐시. **역할별 필터링·LookUp 반복 비용 제거용.** App.OnStart에서 일찍 생성해야 이후 로직이 동작 |
+| `colUsers` | UserInfo_DB | 사용자 캐시. 역할별 필터링·LookUp 반복 비용 제거용 |
 | `colDailyTasks` | Daily_DB | Daily_Screen 우측 편집 중인 업무 목록 |
 | `colDaily_365_Team` | Daily_DB | 최근 365일 내 팀 데이터 캐시 (2,000건 한도 주의) |
-| `colDaily_365_All` | Daily_DB | 최근 365일 전체 데이터 캐시 (2,000건 한도 — **주간 조회에는 쓰지 말 것**) |
-| `colTargetAuthors` | colUsers | **역할별 조회 대상 작성자 목록** (소장→전체 팀장, 부문장→부문 팀장, 팀장/팀원→팀 전원) |
-| `colProjectList` | Task_DB | **팀별 모드** 프로젝트 목록 (colTargetAuthors가 Task_DB에 등록한 프로젝트). ⚠️ `colTargetAuthors` 생성 **이후**에 빌드해야 함 |
-| `colAllProjects` | Project_DB | **프로젝트별 모드** 프로젝트 목록 (Project_DB 전체) |
-| `colSelProjects` | UI | View_Screen에서 선택된 프로젝트. `colProjectList`/`colAllProjects`와 **동일 구조(Value 컬럼)** 유지 필수 |
-| `colSelectedProjects` | (폐기) | Task_Screen 구버전 선택 추적. **colDeselectedProjects로 대체됨** |
-| `colDeselectedProjects` | UI | **Task_Screen 프로젝트 필터 — 해제된 것만 추적.** 기본 전체 선택 상태에서, 체크 해제한 프로젝트만 담는다 (Distinct/in 위임 한계 우회) |
-| `colTeamWeekDaily` | Daily_DB | View_Screen 주간 데이터 — **Daily_DB 직접 호출(날짜 필터 위임)** |
+| `colDaily_365_All` | Daily_DB | 최근 365일 전체 데이터 캐시 (2,000건 한도 — 주간 조회에 쓰지 말 것) |
+| `colTargetAuthors` | colUsers | 역할별 조회 대상 작성자 목록 (소장→전체 팀장, 부문장→부문 팀장, 팀장/팀원→팀 전원) |
+| `colProjectList` | **colTeamWeekDaily** | **팀별 모드 프로젝트 목록. Task_DB가 아니라 그 주 Daily_DB(colTeamWeekDaily)에서 추출** — 위임 한계 우회 (§8) |
+| `colAllProjects` | Project_DB | 프로젝트별 모드 프로젝트 목록 (Project_DB 전체) |
+| `colDeselectedProjects_View` | UI | **View_Screen 프로젝트 필터 — 해제된 것만 추적.** 비동기 로딩 타이밍 문제 해결용 (§8) |
+| `colDeselectedProjects` | UI | Task_Screen 프로젝트 필터 — 해제된 것만 추적 (§9) |
+| `colTeamWeekDaily` | Daily_DB | View_Screen 주간 데이터 — Daily_DB 직접 호출(날짜 필터 위임) |
 | `colTeamMatrix` | 가공 | View_Screen 매트릭스용 GroupBy 결과 |
 | `colWorkTagsMap` | 하드코딩 | 업무_계정별 작업_분류 드롭다운 매핑 |
 | `colTeamPeriodData` | Daily_DB | DashB_Screen 기간 데이터 |
 | `colAccAgg` / `colProjChart` / `colWorkTagAgg` | 가공 | DashB 집계 |
 | `colKoreaHolidays` | 하드코딩 | 2025~2030 공휴일 (Daily_Screen 달력 색 처리) |
-
-### App.OnStart 컬렉션 빌드 순서 (중요)
-```
-varMyEmail → varMyTeam / varMyName
-  → colUsers (UserInfo_DB 캐시)
-  → colTargetAuthors (colUsers 기반 역할별)
-  → colProjectList (Task_DB, colTargetAuthors 참조)   ← 반드시 colTargetAuthors 이후!
-  → colAllProjects (Project_DB 전체)
-  → varMyRole / varMyDivision (이메일 LookUp)
-```
-> ⚠️ 과거 App.OnStart 맨 아래에 `colProjectList`를 Project_DB 기반으로 **재생성**하는 줄이 남아 `colAllProjects`와 동일해지는 버그가 있었음. colProjectList는 **한 곳에서만**, colTargetAuthors 생성 직후에 빌드한다.
 
 ---
 
@@ -199,20 +189,11 @@ varMyEmail → varMyTeam / varMyName
 업무_계정별로 작업_분류 드롭다운 항목이 다르다. App.OnStart의 `colWorkTagsMap` 테이블에 `{Account, Tag, Order}` 형태로 하드코딩.
 
 ### 연구관리 계정의 프로젝트별 분기
-`업무_계정 = "연구관리"`인 경우, **프로젝트명까지 조합**해서 작업_분류를 다르게 한다.
+`업무_계정 = "연구관리"`인 경우, 프로젝트명까지 조합해서 작업_분류를 다르게 한다.
 - 매핑 키 형식: `"연구관리_" & 프로젝트명` (예: `"연구관리_회계"`, `"연구관리_S/W"`)
-- 이 조합 키는 **앱 내부 메모리(colWorkTagsMap)에서만** 쓰는 매핑 키. DB에는 `작업_분류` 태그값(행정/회의 등)만 저장된다.
-
-연구관리 프로젝트 작업_분류:
-| 프로젝트 | 작업_분류 항목 |
-|----------|----------------|
-| 회계 / 관리 / 검정·인증 | 행정, 지원업무, 회의, 문서/보고, 기타 |
-| S/W | 기획/설계, 개발/코딩, 문서/보고, 회의, 기타 |
-| 데이터분석 | 데이터처리, 분석/모델링, 문서/보고, 회의, 기타 |
-| 엔진시험관리 | 인력관리, 시설/장비관리, 안전관리, 기타 |
+- DB에는 `작업_분류` 태그값(행정/회의 등)만 저장.
 
 ### ddWorkTag 매핑 로직 (Daily_Screen)
-`ddWorkTag.Items` / `DefaultSelectedItems`에서 Account 키를 이렇게 만든다:
 ```
 If(
     ThisItem.c업무_계정 = "연구관리",
@@ -221,48 +202,62 @@ If(
 )
 ```
 
-### 작업_분류 강제 선택
-- "미분류"로 저장되는 것을 막기 위해, `colDailyTasks`의 **모든 업무가 작업_분류를 선택해야** 저장 버튼(`Send_btn`) 활성화.
-- `ddWorkTag.OnChange`에서 선택 즉시 `colDailyTasks`에 반영.
-
 ### ⚠️ 작업분류 선택 시 입력값 초기화 버그 (해결됨)
 - 증상: 작업시간·작업내용 입력 후 작업_분류를 선택하면 입력값이 사라짐.
 - 원인: `ddWorkTag.OnChange`의 `Patch(colDailyTasks, ...)`가 갤러리 재렌더링을 유발 → TextInput이 Default로 리셋.
-- 해결: **OnChange의 Patch에 작업시간·작업내용도 함께 저장**(`작업시간: Value(txtWorkHour.Value)`, `작업내용: txtWorkContent.Value`)해서 재렌더링 전에 값을 확정.
+- 해결: OnChange의 Patch에 작업시간·작업내용도 함께 저장해서 재렌더링 전에 값을 확정.
 
 ### 연차/반차 작업시간 자동 입력 (구현됨)
 - `업무_계정 = "연차(반차)"` + 작업_분류가 "연차"면 8, "오전반차"/"오후반차"면 4를 작업시간에 자동 입력.
-- `ddWorkTag.OnChange`에서 **자동값 계산 → UpdateContext(locAutoHour) → Patch(작업시간에 자동값 우선) → Reset(txtWorkHour)** 순서가 핵심. 순서가 어긋나면 옛날 값이 다시 표시됨.
+- `ddWorkTag.OnChange` 실행 순서: **자동값 계산 → UpdateContext(locAutoHour) → Patch(작업시간에 자동값 우선) → Reset(txtWorkHour)**. 순서가 어긋나면 옛날 값이 다시 표시됨.
 - `txtWorkHour.Value` = `If(!IsBlank(locAutoHour), locAutoHour, ThisItem.작업시간)`
 
 ---
 
-## 8. View_Screen 동작 사양
+## 8. View_Screen 동작 사양 (이번 세션 대폭 개선)
 
 ### 팀별 / 프로젝트별 모드
 | 모드 | 프로젝트 목록 소스 | 매트릭스에 보이는 사람 |
 |------|--------------------|------------------------|
-| 팀별 | `colProjectList` (역할별 작성자가 Task_DB에 등록한 프로젝트) | `varMyRole` 권한 범위 (소장→전체 팀장, 부문장→부문 팀장, 팀장/팀원→본인 팀) |
-| 프로젝트별 | `colAllProjects` (Project_DB 전체) | **권한 제한 없이 전 인원** (선택 프로젝트 기준) |
+| 팀별 | `colProjectList` (그 주 Daily_DB에서 추출) | `varMyRole` 권한 범위 |
+| 프로젝트별 | `colAllProjects` (Project_DB 전체) | 권한 제한 없이 전 인원 |
 
-### 주간 데이터 로딩 원칙 (중요)
-- `colTeamWeekDaily`는 **`Daily_DB` 직접 호출**로 그 주(월~금)만 가져온다.
-- 이유: 날짜 범위 필터는 위임 가능 → 주간은 건수가 적어 2,000건 한도에 안 걸림 → 그 주 전 인원 데이터를 정확히 확보.
-- ❌ `colDaily_365_All`(2,000건 캐시)에서 주간을 뽑으면 최신순으로 잘려서 특정 팀만 나오는 편향 발생.
+### ⭐ colProjectList를 colTeamWeekDaily 기반으로 전환 (핵심 변경)
+- **문제**: 팀별 모드에서 최근 Task_DB 항목이 누락. `colProjectList`를 Task_DB에서 `Distinct` + `작성자 in ...`으로 만들었는데 위임 한계로 최근 데이터가 잘림.
+- **해결**: `colProjectList`를 **그 주 `colTeamWeekDaily`(날짜 필터 위임)에서 추출**. 그 주 팀원이 실제 작업한 프로젝트만 정확히 나옴.
+```
+ClearCollect(
+    colProjectList,
+    Sort(Distinct(AddColumns(Filter(colTeamWeekDaily, !IsBlank(프로젝트명)), Value, Trim(프로젝트명)), Value), Value, SortOrder.Ascending)
+)
+```
 
-### 주 이동 버튼 (icPrev / icnNext / ButtonCanvas4_1) — 해결됨
-- 각 버튼은 `vw_StartOfWeek` 변경 + `colWeek` 재로드 **뿐 아니라** `colTeamWeekDaily` 재로드 + `colTeamMatrix` 재계산까지 해야 매트릭스가 갱신된다.
-- ⚠️ 코드 붙여넣을 때 `+7`/`-7` 주석 줄이 섞여 들어가지 않도록 주의 (다음주 버튼이 제자리로 돌아가는 사고 있었음).
+### ⭐ 프로젝트 선택 = colDeselectedProjects_View 방식 (비동기 타이밍 해결)
+- **문제**: 앱 켜고 바로 업무조회 진입 시, 처음 뜬 프로젝트는 전체 선택되나 0.5~1초 후 뜨는 프로젝트는 선택 안 됨. `colTeamWeekDaily`(Daily_DB 직접 호출)가 비동기라 `colSelProjects`가 불완전 상태로 확정되기 때문.
+- **해결**: `colSelProjects`(선택 추적) 폐기 → `colDeselectedProjects_View`(해제 추적). 시작이 빈 컬렉션이라 나중에 프로젝트가 떠도 자동으로 전체 선택 상태 유지.
 
-### 매트릭스 재계산 로직 중복 문제 (미해결 — 다음 작업)
-동일한 `colTeamMatrix` 재계산 코드가 **여러 곳에 복붙**되어 있음:
-- `View_Screen.OnVisible`
-- `tgl_ViewMode.OnChange`
-- `chkProj.OnCheck` / `chkProj.OnUncheck`
-- `chkAll.OnCheck` / `chkAll.OnUncheck`
-- 주 이동 버튼 3개 (icPrev / icnNext / ButtonCanvas4_1)
+| 컨트롤 | 속성 | 값 |
+|--------|------|-----|
+| `chkProj` | Checked | `IsBlank(LookUp(colDeselectedProjects_View, Value = ThisItem.Value))` |
+| `chkProj` | OnCheck | `RemoveIf(colDeselectedProjects_View, Value = ThisItem.Value)` |
+| `chkProj` | OnUncheck | `Collect(colDeselectedProjects_View, {Value: ThisItem.Value})` |
+| `chkAll` | Checked | `IsEmpty(colDeselectedProjects_View)` |
+| `chkAll` | OnCheck | `Clear(colDeselectedProjects_View)` |
+| `chkAll` | OnUncheck | `ClearCollect(colDeselectedProjects_View, gal_ProjectFilter.AllItems)` |
 
-→ **다음 단계: 숨김 버튼 `btnRecalcMatrix` 하나에 로직을 모으고 각 컨트롤은 `Select(btnRecalcMatrix)` 한 줄만 호출.**
+- 매트릭스 rawRows 필터: `If(IsEmpty(colDeselectedProjects_View), baseRows, Filter(baseRows, !(Trim(프로젝트명) in colDeselectedProjects_View.Value)))`
+
+### 주간 데이터 로딩 원칙
+- `colTeamWeekDaily`는 **`Daily_DB` 직접 호출**로 그 주(월~금)만 가져온다. 날짜 범위 필터는 위임 가능 → 그 주 전 인원 데이터를 정확히 확보.
+- ❌ `colDaily_365_All`(2,000건 캐시)에서 주간을 뽑으면 최신순으로 잘려서 편향 발생.
+
+### ⭐ btnRecalcMatrix 단일화 (R-01 완료)
+- 숨김 버튼 `btnRecalcMatrix`(Visible=false)에 재계산 로직을 모음: `colDeselectedProjects_View` 초기화 → `colTeamWeekDaily` 재로드 → `colProjectList` 재계산 → `colTeamMatrix` 재계산.
+- **주 이동 버튼(icPrev/icnNext/ButtonCanvas4_1)·달력 클릭(gal_Calendar_Days_1)** 은 `vw_StartOfWeek` 변경 후 `Select(btnRecalcMatrix)` 한 줄만 호출.
+- ⚠️ **단, `View_Screen.OnVisible`에서는 `Select(btnRecalcMatrix)`를 쓰지 않는다.** OnVisible은 버튼 렌더링 전에 실행되어 `Select()`가 무시될 수 있음 → OnVisible에서는 재계산 로직을 **직접(inline)** 실행한다.
+
+### OnVisible 순차 실행 원칙
+`colTeamWeekDaily`(비동기) → `colProjectList` → `colTeamMatrix` 순서를 엄격히 지킨다. `Concurrent`로 묶지 말 것.
 
 ---
 
@@ -270,63 +265,77 @@ If(
 
 좌측 `GalleryProjects`에서 프로젝트를 체크/해제해 칸반 갤러리를 필터링한다.
 
-### 왜 역방향(해제 추적)인가
-- 기존: `colSelectedProjects`(선택된 것 목록)를 Task_DB `Distinct`로 만듦 → **Distinct 위임 한계로 최근 프로젝트 누락** → 체크가 일부 안 됨.
-- 변경: **기본 전체 선택 상태**로 두고, 해제한 프로젝트만 `colDeselectedProjects`에 담는다. 비교 대상이 작아 위임 문제 없음.
+- 기존 `colSelectedProjects`(선택 추적, Distinct/in 위임 한계로 최근 프로젝트 누락) → `colDeselectedProjects`(해제 추적)로 전환.
+- 기본 전체 선택 상태, 해제한 것만 담는다.
 
-### 구현
 | 위치 | 코드 |
 |------|------|
-| `Task_Screen.OnVisible` | `Clear(colDeselectedProjects)` (전체 선택 상태로 시작) |
-| 프로젝트 체크박스 `Checked` | `IsBlank(LookUp(colDeselectedProjects, Value = ThisItem.Value))` |
+| `Task_Screen.OnVisible` | `Clear(colDeselectedProjects)` |
+| 체크박스 `Checked` | `IsBlank(LookUp(colDeselectedProjects, Value = ThisItem.Value))` |
 | 체크박스 `OnUncheck` | `Collect(colDeselectedProjects, {Value: ThisItem.Value})` |
 | 체크박스 `OnCheck` | `RemoveIf(colDeselectedProjects, Value = ThisItem.Value)` |
-| 칸반 갤러리(시작전/진행중/완료) `Items`의 projRows | `If(IsEmpty(colDeselectedProjects), baseRows, Filter(baseRows, !(프로젝트명 in colDeselectedProjects.Value)))` |
+| 칸반 갤러리 `Items` projRows | `If(IsEmpty(colDeselectedProjects), baseRows, Filter(baseRows, !(프로젝트명 in colDeselectedProjects.Value)))` |
 | `chkSelectAll.OnCheck` | `Clear(colDeselectedProjects)` |
 | `chkSelectAll.OnUncheck` | `ClearCollect(colDeselectedProjects, GalleryProjects.AllItems)` |
 | `chkSelectAll.Checked` | `IsEmpty(colDeselectedProjects)` |
 
 ---
 
-## 10. 프로젝트 관리 모달 (conProjectModal) — 2패널 재설계 (이번 세션 핵심)
+## 10. 프로젝트 관리 모달 (conProjectModal) — 2패널 완성 (이번 세션 완료)
 
-업무현황 화면의 `btnProjectManage`로 여는 프로젝트 마스터(Project_DB) 관리 모달. **Form 컨트롤을 제거하고 Patch 방식으로 전면 재설계**했다.
+업무현황 화면의 `btnProjectManage`로 여는 프로젝트 마스터(Project_DB) 관리 모달. Form 컨트롤 제거, Patch 방식.
 
 ### 레이아웃 (1280 × 720)
 ```
 conProjectModal (1280 × 720, X=80, Y=40)
 ├── recLeftBg (좌측 배경, W=380)
 ├── ddAccount (업무_계정 필터) + ddStatus (상태 필터: 전체/시작전/진행중/완료)
-├── galProjectList (좌측 목록, 상태 뱃지 표시)
+├── galProjectList (좌측 목록 — 카드형, 상태 뱃지)
 ├── recPanelDivider (좌/우 구분선, X=380)
-└── conProjDetail (우측 상세, X=381, W=899)   ← 구 Container16
+└── conProjDetail (우측 상세, X=381, W=899)
     ├── recHeader / recHeaderDivider (헤더 H=72)
-    ├── lblProjName (View) / txtProjName (Edit·New) — 프로젝트명, 같은 위치 Visible 토글
-    ├── recStatusBadge / lblStatusBadge (상태 뱃지)
+    ├── lblProjName (View) / txtProjName (Edit·New)
+    ├── recStatusBadge / lblStatusBadge
     ├── [바디 좌] 기본 정보: 업무_계정 / PM / 관련기종명 / 시작날짜 / 종료날짜 / 상태
     │     각 필드 = lblKey_* (필드명 고정) + lblVal_* (View) + 입력컨트롤 (Edit·New)
-    ├── recBodyDivider (좌/우 바디 구분선, X=449)
+    ├── recBodyDivider (좌/우 구분선, X=449)
     └── [바디 우] 프로젝트 현황: D-day / 진행률 바 / 등록일
 ```
 
+### 좌측 갤러리 카드형 디자인 (이번 세션)
+- `TemplateHeight = 76`. 카드 안: 업무_계정(상단 회색) / 프로젝트명(메인 Semibold) / 날짜 범위(하단 회색) / 상태 뱃지(우측) / 선택 강조 세로 바(recSelectedBar, `ThisItem.IsSelected`) / 카드 구분선(recItemDivider).
+
 ### 모드 토글 패턴
-- `varProjectMode` = "View" / "Edit" / "New"
-- 같은 위치에 **View용 라벨**과 **Edit용 입력**을 겹쳐두고 `Visible` 조건으로 교체:
-  - View 라벨: `Visible = varProjectMode = "View"`
-  - Edit 입력: `Visible = varProjectMode = "Edit" || varProjectMode = "New"`
-  - Key 라벨(필드명): 항상 표시 (Visible 조건 없음)
+- `varProjectMode` = "View" / "Edit" / "New". 같은 위치에 View 라벨 + Edit 입력을 겹쳐두고 Visible로 교체.
+- View 라벨: `Visible = varProjectMode = "View"`
+- Edit 입력: `Visible = varProjectMode = "Edit" || varProjectMode = "New"`
+- Key 라벨: 항상 표시.
+
+### ⚠️ 컨트롤 버전 주의 — TextInput은 `.Text`, 콤보박스는 `Default`에 문자열
+- 이 환경의 TextInput 값은 `.Value`가 아니라 **`.Text`**. 저장 Patch도 `txtProjName.Text` 형태.
+- 콤보박스(ComboBox)는 `DefaultSelectedItems`(배열)가 아니라 **`Default`에 문자열**을 받는다. 배열(`[]`)을 넣으면 "Text 값이 필요합니다" 에러.
+
+### 신규(New) 모드 입력 필드 초기화
+각 입력 컨트롤 값에 모드 분기:
+- 텍스트: `If(varProjectMode = "New", "", galProjectList.Selected.<필드>)`
+- 날짜: `If(varProjectMode = "New", Today(), galProjectList.Selected.<필드>)`
+- 콤보 업무_계정: `If(varProjectMode = "New", "", galProjectList.Selected.업무_계정)`
+- 콤보 상태: `If(varProjectMode = "New", "시작전", galProjectList.Selected.상태)`
+
+### 버튼 Visible (연구관리팀 전용 권한)
+- `btnNewProject.Visible` = `varProjectMode = "View" && varMyTeam = "연구관리팀"`
+- `btnEdit.Visible` = `varProjectMode = "View" && !IsBlank(galProjectList.Selected) && varMyTeam = "연구관리팀"`
+- 저장/취소/삭제는 Edit·New 모드에서만 표시. **편집 중일 때 신규 등록 버튼 숨김.**
+
+### ⚠️ 0으로 나누기 오류 (해결됨)
+- 증상: Task_Screen 진입 시 상단에 "잘못된 작업: 0으로 나누기" 에러.
+- 원인: 진행률 계산(`elapsed / total`)에서 시작날짜=종료날짜인 프로젝트가 있으면 `total=0`.
+- 해결: **진행률을 쓰는 세 곳 모두**(`recProgressFill.Width`, `recProgressFill.Fill`, `lblVal_Progress.Text`)에 `If(total <= 0, ...)` 예외 처리. 한 곳만 빠져도 에러 발생.
 
 ### 우측 현황 계산식
-- **D-day**: 상태가 완료면 "완료 ✓", 아니면 `DateDiff(Today(), 종료날짜)`로 D-n/D-Day/D+n. 색은 초과=빨강, 14일 이내=주황, 그 외=검정.
-- **진행률**: `elapsed / total * 100` (시작~오늘 / 시작~종료). 바 Width = `380 * pct / 100`. 색은 100%+=빨강, 70%+=주황, 그 외=파랑.
-- **등록일**: `Text(galProjectList.Selected.'만든 날짜', "yyyy.mm.dd")`
-
-### 갤러리 상태 뱃지 색
-```
-시작전 = RGBA(158, 158, 158, 1)  (회색)
-진행중 = RGBA(30, 136, 229, 1)   (파랑)
-완료   = RGBA(56, 142, 60, 1)    (초록)
-```
+- D-day: 완료면 "완료 ✓", 아니면 `DateDiff(Today(), 종료날짜)`. 색: 초과=빨강, 14일 이내=주황, 그 외=검정.
+- 진행률: `elapsed / total * 100`. 바 Width = `380 * pct / 100`. 색: 100%+=빨강, 70%+=주황, 그 외=파랑.
+- 등록일: `Text(galProjectList.Selected.'만든 날짜', "yyyy.mm.dd")`
 
 ### galProjectList.Items (업무_계정 + 상태 필터)
 ```
@@ -341,16 +350,11 @@ SortByColumns(
 )
 ```
 
-### 저장 (btnSaveProject.OnSelect) — Patch 방식
-- 검증: 프로젝트명·업무_계정 필수.
+### 저장 (btnSaveProject.OnSelect)
+- 검증: 프로젝트명(`txtProjName.Text`)·업무_계정(`cmbProjAccount.Selected.Value`) 필수.
 - New → `Patch(Project_DB, Defaults(Project_DB), {...})`, Edit → `Patch(Project_DB, galProjectList.Selected, {...})`.
-- 저장 필드: 프로젝트명/PM/관련기종명/시작날짜/종료날짜/상태(cmbProjStatus)/업무_계정(cmbProjAccount).
 - 이후 `Refresh(Project_DB)` + `varProjectMode="View"` + 토스트.
 - 삭제는 `conDeleteConfirm` 확인 후 `Remove(Project_DB, galProjectList.Selected)`.
-
-### 주요 컨트롤 이름 규칙
-- 필드: `lblKey_<필드>` / `lblVal_<필드>` / 입력은 `txtProj*` `cmbProj*` `dpProj*`
-- 현황: `lblKey_Dday` `lblVal_Dday` `recProgressBg` `recProgressFill` `lblVal_Progress` `lblVal_RegDate`
 
 ---
 
@@ -358,14 +362,18 @@ SortByColumns(
 
 | 번호 | 화면 | 버그 | 상태 |
 |------|------|------|------|
-| B-01 | View_Screen | 주 이동 시 매트릭스 갱신 안됨 | ✅ 해결 — 주 이동 버튼 3개에 `colTeamWeekDaily` 재로드 + `colTeamMatrix` 재계산 추가 |
+| B-01 | View_Screen | 주 이동 시 매트릭스 갱신 안됨 | ✅ 해결 — btnRecalcMatrix 단일화 |
 | B-02 | View_Screen | 소장/부문장 화면에서 팀장 데이터 안보임 | ✅ 해결 |
-| B-03 | Task/View | 프로젝트별 선택 필터 안됨 / colProjectList·colAllProjects 동일 | ✅ 해결 — 소스 분리(colProjectList=Task_DB, colAllProjects=Project_DB) + colProjectList 중복 생성 제거 |
-| B-04 | Task_Screen | 프로젝트 관리 신규 저장 오류 | ✅ 해결 — Form 제거, Patch 방식 재설계 |
-| B-05 | Task_Screen | 프로젝트 관리 상태 수정 안됨 | ✅ 해결 — 상태 드롭다운(cmbProjStatus) + Patch |
-| B-06 | 전체 | 특정 직원 이름 파싱 깨짐 (`User().FullName` = "임서현 / 연구관리팀 / 주임") | ✅ 해결 — `name_label.Text`를 `varMyName`으로 전환 |
-| B-07 | Task_Screen | 프로젝트 체크박스 일부 미선택(최근 프로젝트 누락) | ✅ 해결 — colDeselectedProjects 역방향 추적 방식 |
-| B-08 | Daily_Screen | 작업분류 선택 시 작업시간·작업내용 초기화 | ✅ 해결 — OnChange Patch에 입력값 동시 저장 |
+| B-03 | Task/View | 프로젝트별 선택 필터 안됨 / colProjectList·colAllProjects 동일 | ✅ 해결 |
+| B-04 | Task_Screen | 프로젝트 관리 신규 저장 오류 | ✅ 해결 |
+| B-05 | Task_Screen | 프로젝트 관리 상태 수정 안됨 | ✅ 해결 |
+| B-06 | 전체 | 특정 직원 이름 파싱 깨짐 | ✅ 해결 — name_label → varMyName |
+| B-07 | Task_Screen | 프로젝트 체크박스 일부 미선택 | ✅ 해결 — colDeselectedProjects |
+| B-08 | Daily_Screen | 작업분류 선택 시 입력값 초기화 | ✅ 해결 |
+| B-09 | View_Screen | 팀별 모드에서 최근 Task 프로젝트 누락 | ✅ 해결 — colProjectList를 colTeamWeekDaily 기반으로 전환 |
+| B-10 | View_Screen | 달력 클릭 시 프로젝트/Task 누락 | ✅ 해결 — 달력 OnSelect에 Select(btnRecalcMatrix) 추가 |
+| B-11 | View_Screen | 최초 진입 시 나중에 뜬 프로젝트 체크 안됨 (비동기 타이밍) | ✅ 해결 — colDeselectedProjects_View 방식 |
+| B-12 | Task_Screen | "0으로 나누기" 에러 (진행률 계산) | ✅ 해결 — 세 곳 모두 total<=0 예외 처리 |
 
 ---
 
@@ -377,36 +385,35 @@ SortByColumns(
 | F-02 | 개발 | 26년 사업 계획 프로젝트 — 종료분 완료 처리, 진행중만 표시 |
 | F-03 | 개발 | 그래프 색 구분 |
 | F-04 | 개발 | 팀별 작성률 표시 |
-| F-05 | 개발 | 프로젝트 관리 화면 상태별 필터링 | ✅ ddStatus로 구현 완료 |
 | F-06 | 개발 | 연차(반차) 색 처리 — Daily_Screen 빨간색 표시 |
 | F-07 | 개발 | 출장 시스템 (작업_분류에 "출장" 항목 추가됨) |
 | F-08 | 개발 | 연차 시스템 |
 | F-09 | 개발 | 공지 시스템 |
-| F-10 | 개발 | 기타분류 화면 (팀장별 기타 항목 조회) |
-| R-01 | 리팩토링 | **View_Screen 매트릭스 재계산 로직 다수 → `btnRecalcMatrix` 단일화** (우선순위 높음) |
+| F-10 | 개발 | 기타·미분류 건 인원별 정리 (진행중) |
+| R-01 | 리팩토링 | View_Screen 매트릭스 재계산 단일화 → ✅ 완료 (btnRecalcMatrix) |
 | R-02 | 리팩토링 | 모든 `name_label.Text` → `varMyName` 통일 잔여분 점검 |
-| P-01 | 성능 | App.OnStart 최적화 — Daily_DB 2,000건 한도 구조 개선 (날짜·작성자 기반 부분 로딩 설계) |
+| P-01 | 성능 | App.OnStart 최적화 — Daily_DB 2,000건 한도 구조 개선 |
 
 ---
 
 ## 13. 이번 세션 완료 작업 (요약)
 
-1. **colProjectList / colAllProjects 소스 분리** — App.OnStart 맨 아래 중복 생성 줄 제거. 팀별=Task_DB(colTargetAuthors 기반), 프로젝트별=Project_DB 전체. (B-03)
-2. **colTargetAuthors 팀원 분기 변경** — "본인만" → "팀 전체"(`Filter(colUsers, 팀 = varMyTeam)`).
-3. **Task_Screen 프로젝트 필터 재설계** — colSelectedProjects(선택 추적) → colDeselectedProjects(해제 추적)로 전환. Distinct/in 위임 한계 우회. 전체 선택/해제 체크박스 동기화. (B-07)
-4. **name_label → varMyName 전환** — `User().FullName` 파싱 깨짐 근본 해결. (B-06)
-5. **작업분류 선택 시 입력값 초기화 버그** — ddWorkTag.OnChange Patch에 작업시간·작업내용 동시 저장. (B-08)
-6. **연차/반차 작업시간 자동 입력** — 연차=8, 반차=4. OnChange 계산→UpdateContext→Patch→Reset 순서 확정.
-7. **View_Screen 주 이동 버튼** — colTeamWeekDaily 재로드 + colTeamMatrix 재계산 추가. 다음주 버튼 주석 혼입 사고 수정. (B-01)
-8. **프로젝트 관리 모달 2패널 재설계** — Form 제거, Patch 방식. 1280×720, 좌측 필터(업무_계정+상태)+목록, 우측 헤더/기본정보/현황(D-day·진행률·등록일). 상태 뱃지, 모드 토글(View/Edit/New). (B-04, B-05, F-05)
+1. **프로젝트 관리 모달 완성** — 신규/편집 모드 값 초기화, 편집 중 신규 버튼 숨김, 연구관리팀 전용 권한(btnNewProject/btnEdit Visible), 0으로 나누기 오류 수정. TextInput `.Text`·콤보박스 `Default` 문자열 버전 이슈 정리.
+2. **좌측 갤러리 카드형 재디자인** — TemplateHeight 76, 프로젝트명 메인 + 업무계정/날짜 서브 + 상태 뱃지 + 선택 강조 세로 바.
+3. **팀별 프로젝트 누락 해결(B-09)** — colProjectList를 Task_DB(위임 한계)에서 colTeamWeekDaily 기반으로 전환.
+4. **달력 클릭 누락 해결(B-10)** — gal_Calendar_Days_1 OnSelect에 Select(btnRecalcMatrix) 추가.
+5. **비동기 타이밍 체크 문제 해결(B-11)** — colSelProjects → colDeselectedProjects_View(해제 추적)로 전환. 최초 진입 시에도 전체 선택 유지.
+6. **btnRecalcMatrix 단일화(R-01 완료)** — 주 이동·달력 클릭은 Select(btnRecalcMatrix), OnVisible은 inline 직접 실행(렌더링 타이밍).
+7. **업데이트 안내 메일 초안** 작성.
 
 ---
 
 ## 14. 다음 세션 우선순위 (추천)
 
-1. **프로젝트 관리 모달 마무리** — 버튼 정리(STEP 6-A), 저장 Patch 교체(6-B), ddStatus 필터(6-C) 적용 확인 + Edit/New 모드 동작 테스트.
-2. **R-01 — View_Screen 매트릭스 재계산 단일화** (재계산 코드가 여러 곳 중복이라 추가 버그 위험 큼).
-3. **F-06 — 연차/반차 색 처리** (작업시간 자동 입력은 끝났으니 시각 표시만 추가).
+1. **F-06 — 연차/반차 Daily_Screen 색 처리** (자동 시간 입력은 완료, 시각 표시만 남음).
+2. **F-10 — 기타·미분류 건 인원별 정리** (진행 중).
+3. **R-02 — name_label.Text → varMyName 잔여분 점검** (B-06 완전 마무리).
+4. **P-01 — App.OnStart / Daily_DB 2,000건 한도 구조 개선** (근본 성능 과제).
 
 ---
 
@@ -414,9 +421,9 @@ SortByColumns(
 
 ```
 1. 이 CLAUDE.md 첨부
-2. 작업할 화면의 .powerfx 첨부 (예: Task_Screen.powerfx)
+2. 작업할 화면의 .powerfx 첨부 (예: Daily_Screen.powerfx)
 3. 작업 내용 설명
-   예시: "CLAUDE.md + Task_Screen.powerfx — 프로젝트 관리 모달 버튼 정리부터 진행"
+   예시: "CLAUDE.md + Daily_Screen.powerfx — F-06 연차/반차 색 처리 진행"
 ```
 
 ### 코드 스타일 (개발자 선호)
@@ -425,5 +432,6 @@ SortByColumns(
 - 코드 제공 후 적용 위치 명시: 컨트롤 / 속성 / 화면 + 한 줄 요약
 - 속성값은 한 줄씩 (X=465/Y=124 함축 표기 금지)
 - UI 작업은 STEP별로: 적용 → 스크린샷 확인 → 다음 단계
+- 코드가 꼬이면 전체 코드를 받아 통짜로 다시 제공
 - Delegation·성능 경고는 항상 선제적으로
 - 더 나은 구조가 있으면 코드 전에 먼저 제안
