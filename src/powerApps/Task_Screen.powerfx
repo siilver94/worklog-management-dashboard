@@ -2519,11 +2519,6 @@ Screens:
                         Width: =580
                         X: =32
                         Y: =20
-                  - Text2:
-                      Control: ModernText@1.0.0
-                      Properties:
-                        X: =125
-                        Y: =519
                   - recHeaderDivider:
                       Control: Rectangle@2.3.0
                       Properties:
@@ -2539,107 +2534,458 @@ Screens:
                         Width: =899
                         Y: =72
                   - txtProjName:
-                      Control: ModernTextInput@1.1.0
+                      Control: ModernTextInput@1.1.1
                       Properties:
-                        Default: =galProjectList.Selected.프로젝트명
+                        Default: =If(varProjectMode = "New", "", galProjectList.Selected.프로젝트명)
+                        Font: =Font.Verdana
                         Height: =40
                         Placeholder: ="프로젝트명을 입력하세요"
                         Visible: =varProjectMode = "Edit" || varProjectMode = "New"
                         Width: =540
                         X: =32
                         Y: =16
-            - galProjectList:
-                Control: Gallery@2.15.0
-                Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_pcfCore
-                Properties:
-                  BorderColor: =RGBA(243, 242, 241, 1)
-                  FocusedBorderColor: =RGBA(98, 100, 167, 1)
-                  FocusedBorderThickness: =2
-                  Height: =648
-                  Items: |-
-                    =SortByColumns(
-                        Filter(
-                            Project_DB,
-                            // 업무_계정 필터
-                            IsBlank(ddAccount.Selected.Value) || 업무_계정 = ddAccount.Selected.Value,
-                            // 상태 필터 (전체면 조건 없음)
-                            ddStatus.Selected.Value = "전체" || 상태 = ddStatus.Selected.Value
-                        ),
-                        "OData__xd504__xb85c__xc81d__xd2b8__xba",
-                        SortOrder.Ascending
-                    )
-                  Width: =380
-                  Y: =64
-                Children:
-                  - Title4:
-                      Control: FluentV8/Label@1.8.6
-                      Properties:
-                        FontWeight: =FontWeight.Semibold
-                        Height: =24
-                        OnSelect: =Select(Parent)
-                        TabIndex: =-1
-                        Text: =ThisItem.프로젝트명
-                        VerticalAlignment: =VerticalAlign.Top
-                        Width: =118
-                        X: =104
-                        Y: =12
-                  - Subtitle3:
-                      Control: FluentV8/Label@1.8.6
-                      Properties:
-                        FontSize: =9
-                        FontWeight: =FontWeight.Normal
-                        Height: =24
-                        OnSelect: =Select(Parent)
-                        TabIndex: =-1
-                        Text: =ThisItem.업무_계정
-                        VerticalAlignment: =VerticalAlign.Top
-                        Width: =98
-                        X: =6
-                        Y: =12
-                  - Rectangle8:
-                      Control: Rectangle@2.3.0
-                      Properties:
-                        BorderColor: =RGBA(243, 242, 241, 1)
-                        DisabledFill: =RGBA(0,0,0,0)
-                        Fill: =RGBA(0,0,0,0)
-                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
-                        Height: =Parent.TemplateHeight
-                        HoverFill: =RGBA(0,0,0,0)
-                        OnSelect: |-
-                          =Set(varProjectMode, "View");
-                          ViewForm(frmProject);
-                        PressedFill: =RGBA(0,0,0,0)
-                        TabIndex: =0
-                        Width: =Parent.TemplateWidth
-                  - Subtitle3_3:
-                      Control: FluentV8/Label@1.8.6
-                      Properties:
-                        FontSize: =9
-                        FontWeight: =FontWeight.Normal
-                        Height: =24
-                        OnSelect: =Select(Parent)
-                        TabIndex: =-1
-                        Text: =ThisItem.시작날짜
-                        VerticalAlignment: =VerticalAlign.Top
-                        Width: =98
-                        X: =12
-                        Y: =28
-                  - BadgeCanvas2:
+                  - recStatusBadge:
                       Control: Badge@0.0.24
                       Properties:
                         BasePaletteColor: |-
                           =Switch(
-                              ThisItem.상태,
-                              "시작전",  RGBA(158, 158, 158, 1),
-                              "진행중",  RGBA(30, 136, 229, 1),
-                              "완료",    RGBA(56, 142, 60, 1),
+                              galProjectList.Selected.상태,
+                              "시작전", RGBA(158, 158, 158, 1),
+                              "진행중", RGBA(30, 136, 229, 1),
+                              "완료",   RGBA(56, 142, 60, 1),
                               RGBA(200, 200, 200, 1)
                           )
-                        Content: =ThisItem.상태
-                        Height: =20
-                        Width: =52
-                        X: =268
-                        Y: =14
+                        Content: =galProjectList.Selected.상태
+                        Height: =28
+                        Visible: =varProjectMode = "View"
+                        Width: =96
+                        X: =760
+                        Y: =22
+                  - lblBasicInfoTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(98, 100, 167, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =11
+                        Text: ="기본 정보"
+                        Width: =200
+                        X: =32
+                        Y: =92
+                  - recHeaderDivider_1:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(243, 242, 241, 1)
+                        BorderStyle: =BorderStyle.None
+                        BorderThickness: =2
+                        DisabledFill: =RGBA(200, 198, 196, 1)
+                        Fill: =RGBA(220, 220, 220, 1)
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =580
+                        HoverFill: =RGBA(98, 100, 167, 1)
+                        PressedFill: =RGBA(98, 100, 167, 1)
+                        Width: =1
+                        X: =449
+                        Y: =80
+                  - txtProjPM:
+                      Control: ModernTextInput@1.1.1
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Default: =If(varProjectMode = "New", "", galProjectList.Selected.PM)
+                        Font: =Font.Verdana
+                        Height: =36
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =220
+                  - txtProjModel:
+                      Control: ModernTextInput@1.1.1
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Default: =If(varProjectMode = "New", "", galProjectList.Selected.관련기종명)
+                        Font: =Font.Verdana
+                        Height: =36
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =292
+                  - dpProjStart:
+                      Control: ModernDatePicker@1.0.1
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        DefaultDate: =If(varProjectMode = "New", Today(), galProjectList.Selected.시작날짜)
+                        Font: =Font.Verdana
+                        Height: =36
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =364
+                  - dpProjEnd:
+                      Control: ModernDatePicker@1.0.1
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        DefaultDate: =If(varProjectMode = "New", Today(), galProjectList.Selected.종료날짜)
+                        Font: =Font.Verdana
+                        Height: =36
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =436
+                  - cmbProjAccount:
+                      Control: ModernCombobox@1.1.1
+                      Properties:
+                        DefaultSelectedItems: =If(varProjectMode = "New", [], [galProjectList.Selected.업무_계정])
+                        Font: =Font.Verdana
+                        Height: =36
+                        ItemDisplayText: =ThisItem.Value
+                        Items: =Sort(Distinct(Project_DB, 업무_계정), Value, SortOrder.Ascending)
+                        SelectMultiple: =false
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =148
+                  - cmbProjStatus:
+                      Control: ModernCombobox@1.1.1
+                      Properties:
+                        DefaultSelectedItems: =If(varProjectMode = "New", ["시작전"], [galProjectList.Selected.상태])
+                        Font: =Font.Verdana
+                        Height: =36
+                        ItemDisplayText: =ThisItem.Value
+                        Items: =["시작전", "진행중", "완료"]
+                        SelectMultiple: =false
+                        Size: =9
+                        Visible: =varProjectMode = "Edit" || varProjectMode = "New"
+                        Width: =380
+                        X: =32
+                        Y: =508
+                  - lblKey_Account:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="업무_계정"
+                        Width: =380
+                        X: =32
+                        Y: =124
+                  - lblVal_Account:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", "", galProjectList.Selected.업무_계정)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =150
+                  - lblKey_PM:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="PM"
+                        Width: =380
+                        X: =32
+                        Y: =196
+                  - lblVal_PM:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", "", galProjectList.Selected.PM)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =218
+                  - lblKey_Model:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="관련기종명"
+                        Width: =380
+                        X: =32
+                        Y: =268
+                  - lblVal_Model:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", "", galProjectList.Selected.관련기종명)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =290
+                  - lblKey_StartDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="시작날짜"
+                        Width: =380
+                        X: =32
+                        Y: =340
+                  - lblVal_StartDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", Today(), galProjectList.Selected.시작날짜)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =362
+                  - lblKey_EndDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="종료날짜"
+                        Width: =380
+                        X: =32
+                        Y: =412
+                  - lblVal_EndDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", Today(), galProjectList.Selected.종료날짜)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =434
+                  - lblKey_Status:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =25
+                        Size: =9
+                        Text: ="상태"
+                        Width: =380
+                        X: =32
+                        Y: =484
+                  - lblVal_Status:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Size: =12
+                        Text: =If(varProjectMode = "New", "시작전", galProjectList.Selected.상태)
+                        Visible: =varProjectMode = "View"
+                        Width: =380
+                        X: =32
+                        Y: =506
+                  - lblStatusInfoTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(98, 100, 167, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =11
+                        Text: ="프로젝트 현황"
+                        Width: =200
+                        X: =465
+                        Y: =92
+                  - lblKey_Dday:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(130, 130, 130, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =9
+                        Text: ="D-day"
+                        Width: =380
+                        X: =465
+                        Y: =130
+                  - lblVal_Dday:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: |-
+                          =If(
+                              galProjectList.Selected.상태 = "완료",
+                              RGBA(56, 142, 60, 1),
+                              With(
+                                  { diff: DateDiff(Today(), galProjectList.Selected.종료날짜, TimeUnit.Days) },
+                                  If(
+                                      diff <= 0,  RGBA(211, 47, 47, 1),
+                                      diff <= 14, RGBA(239, 108, 0, 1),
+                                      RGBA(50, 50, 50, 1)
+                                  )
+                              )
+                          )
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =48
+                        Size: =24
+                        Text: |-
+                          =If(
+                              galProjectList.Selected.상태 = "완료",
+                              "완료 ✓",
+                              With(
+                                  { diff: DateDiff(Today(), galProjectList.Selected.종료날짜, TimeUnit.Days) },
+                                  If(
+                                      diff > 0, "D-" & Text(diff),
+                                      diff = 0, "D-Day",
+                                      "D+" & Text(Abs(diff))
+                                  )
+                              )
+                          )
+                        Width: =380
+                        X: =465
+                        Y: =158
+                  - lblKey_Progress:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(130, 130, 130, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =9
+                        Text: ="진행률"
+                        Width: =380
+                        X: =465
+                        Y: =224
+                  - recProgressBg:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(243, 242, 241, 1)
+                        BorderStyle: =BorderStyle.None
+                        DisabledFill: =RGBA(200, 198, 196, 1)
+                        Fill: =RGBA(220, 220, 220, 1)
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =16
+                        HoverFill: =RGBA(98, 100, 167, 1)
+                        PressedFill: =RGBA(98, 100, 167, 1)
+                        Width: =380
+                        X: =465
+                        Y: =256
+                  - recProgressFill:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(243, 242, 241, 1)
+                        BorderStyle: =BorderStyle.None
+                        DisabledFill: =RGBA(200, 198, 196, 1)
+                        Fill: |-
+                          =With(
+                              {
+                                  total: DateDiff(galProjectList.Selected.시작날짜, galProjectList.Selected.종료날짜, TimeUnit.Days),
+                                  elapsed: DateDiff(galProjectList.Selected.시작날짜, Today(), TimeUnit.Days)
+                              },
+                              With(
+                                  { pct: If(total <= 0, 100, Min(100, Max(0, elapsed / total * 100))) },
+                                  If(
+                                      pct >= 100, RGBA(211, 47, 47, 1),
+                                      pct >= 70,  RGBA(239, 108, 0, 1),
+                                      RGBA(30, 136, 229, 1)
+                                  )
+                              )
+                          )
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =16
+                        HoverFill: =RGBA(98, 100, 167, 1)
+                        PressedFill: =RGBA(98, 100, 167, 1)
+                        Width: |-
+                          =With(
+                              {
+                                  total: DateDiff(galProjectList.Selected.시작날짜, galProjectList.Selected.종료날짜, TimeUnit.Days),
+                                  elapsed: DateDiff(galProjectList.Selected.시작날짜, Today(), TimeUnit.Days)
+                              },
+                              If(
+                                  total <= 0,
+                                  380,
+                                  380 * Min(100, Max(0, elapsed / total * 100)) / 100
+                              )
+                          )
+                        X: =465
+                        Y: =256
+                  - lblVal_Progress:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(100, 100, 100, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =10
+                        Text: |-
+                          =With(
+                              {
+                                  total: DateDiff(galProjectList.Selected.시작날짜, galProjectList.Selected.종료날짜, TimeUnit.Days),
+                                  elapsed: DateDiff(galProjectList.Selected.시작날짜, Today(), TimeUnit.Days)
+                              },
+                              If(
+                                  total <= 0,
+                                  "100%",
+                                  Text(Min(100, Max(0, Round(elapsed / total * 100, 0)))) & "%"
+                              )
+                          )
+                        Width: =380
+                        X: =465
+                        Y: =276
+                  - lblRegInfoTitle:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(98, 100, 167, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =11
+                        Text: ="등록 정보"
+                        Width: =380
+                        X: =465
+                        Y: =324
+                  - lblKey_RegDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: =RGBA(130, 130, 130, 1)
+                        Font: =Font.Verdana
+                        FontWeight: =FontWeight.Semibold
+                        Height: =30
+                        Size: =9
+                        Text: ="등록일"
+                        Width: =380
+                        X: =465
+                        Y: =362
+                  - lblVal_RegDate:
+                      Control: ModernText@1.0.0
+                      Properties:
+                        Color: |+
+                          =RGBA(50, 50, 50, 1)
+                        Font: =Font.Verdana
+                        Height: =30
+                        Size: =12
+                        Text: =Text(galProjectList.Selected.'만든 날짜', "yyyy.mm.dd")
+                        Width: =380
+                        X: =465
+                        Y: =390
             - Icon1_1:
                 Control: Classic/Icon@2.5.0
                 Properties:
@@ -2671,28 +3017,82 @@ Screens:
             - btnNewProject:
                 Control: Button@0.0.45
                 Properties:
-                  OnSelect: |-
+                  Appearance: ='ButtonCanvas.Appearance'.Secondary
+                  BorderColor: =RGBA(0, 0, 0, 1)
+                  BorderStyle: =BorderStyle.Solid
+                  BorderThickness: =1
+                  Height: =40
+                  OnSelect: |+
                     =Set(varProjectMode, "New");
-                    NewForm(frmProject);
-                  Text: ="New"
-                  X: =857
-                  Y: =666
+                  Text: ="신규 등록"
+                  Visible: =varProjectMode = "View" && varMyTeam = "연구관리팀"
+                  Width: =120
+                  X: =465
+                  Y: =660
             - btnSaveProject:
                 Control: Button@0.0.45
                 Properties:
-                  OnSelect: =SubmitForm(frmProject);
+                  Appearance: ='ButtonCanvas.Appearance'.Secondary
+                  BorderColor: =RGBA(0, 0, 0, 1)
+                  BorderStyle: =BorderStyle.Solid
+                  BorderThickness: =1
+                  Height: =40
+                  OnSelect: |-
+                    =If(
+                        IsBlank(txtProjName.Text) || IsBlank(cmbProjAccount.Selected.Value),
+                        Notify("프로젝트명과 업무_계정은 필수입니다.", NotificationType.Error),
+
+                        If(
+                            varProjectMode = "New",
+                            Patch(
+                                Project_DB,
+                                Defaults(Project_DB),
+                                {
+                                    프로젝트명:  txtProjName.Text,
+                                    PM:          txtProjPM.Text,
+                                    관련기종명:  txtProjModel.Text,
+                                    시작날짜:    dpProjStart.SelectedDate,
+                                    종료날짜:    dpProjEnd.SelectedDate,
+                                    상태:        cmbProjStatus.Selected.Value,
+                                    업무_계정:   cmbProjAccount.Selected.Value
+                                }
+                            ),
+                            Patch(
+                                Project_DB,
+                                galProjectList.Selected,
+                                {
+                                    프로젝트명:  txtProjName.Text,
+                                    PM:          txtProjPM.Text,
+                                    관련기종명:  txtProjModel.Text,
+                                    시작날짜:    dpProjStart.SelectedDate,
+                                    종료날짜:    dpProjEnd.SelectedDate,
+                                    상태:        cmbProjStatus.Selected.Value,
+                                    업무_계정:   cmbProjAccount.Selected.Value
+                                }
+                            )
+                        );
+
+                        Refresh(Project_DB);
+                        Set(varProjectMode, "View");
+                        Set(varToastMessage, "저장되었습니다.");
+                        Set(varShowToast, true)
+                    )
                   Text: ="저장"
                   Visible: =varProjectMode = "New" || varProjectMode = "Edit"
-                  X: =846
-                  Y: =603
+                  Width: =120
+                  X: =620
+                  Y: =660
             - btnDeleteProject:
                 Control: Button@0.0.45
                 Properties:
+                  BasePaletteColor: =RGBA(249, 83, 109, 1)
+                  Height: =40
                   OnSelect: =Set(varShowDeleteConfirm, true);
                   Text: ="삭제"
                   Visible: =varProjectMode = "Edit"
-                  X: =959
-                  Y: =603
+                  Width: =100
+                  X: =898
+                  Y: =660
             - ddAccount:
                 Control: DropDown@0.0.45
                 Properties:
@@ -2713,22 +3113,33 @@ Screens:
             - btnEdit:
                 Control: Button@0.0.45
                 Properties:
-                  OnSelect: |-
+                  Appearance: ='ButtonCanvas.Appearance'.Secondary
+                  BorderColor: =RGBA(0, 0, 0, 1)
+                  BorderStyle: =BorderStyle.Solid
+                  BorderThickness: =1
+                  Height: =40
+                  OnSelect: |+
                     =Set(varProjectMode, "Edit");
-                    EditForm(frmProject);
                   Text: ="편집"
                   Visible: |+
                     =varProjectMode = "View" && !IsBlank(galProjectList.Selected)
-                  X: =959
-                  Y: =666
+                  Width: =120
+                  X: =620
+                  Y: =660
             - btnCancleProject:
                 Control: Button@0.0.45
                 Properties:
+                  Appearance: ='ButtonCanvas.Appearance'.Secondary
+                  BorderColor: =RGBA(0, 0, 0, 1)
+                  BorderStyle: =BorderStyle.Solid
+                  BorderThickness: =1
+                  Height: =40
                   OnSelect: =Set(varProjectMode, "View");
                   Text: ="취소"
                   Visible: =varProjectMode = "New" || varProjectMode = "Edit"
-                  X: =744
-                  Y: =603
+                  Width: =120
+                  X: =760
+                  Y: =660
             - conDeleteConfirm:
                 Control: GroupContainer@1.5.0
                 Variant: ManualLayout
@@ -2754,7 +3165,6 @@ Screens:
 
                           Set(varShowDeleteConfirm, false);
                           Set(varProjectMode, "View");
-                          ViewForm(frmProject);
 
                           // ✅ 토스트
                           Set(varShowToast, false);
@@ -2770,15 +3180,6 @@ Screens:
                         Text: ="아니오"
                         X: =251
                         Y: =123
-            - ddStatus:
-                Control: ModernDropdown@1.0.1
-                Properties:
-                  ItemDisplayText: =ThisItem.Value
-                  Items: =["전체", "시작전", "진행중", "완료"]
-                  OnChange: =Reset(galProjectList)
-                  Width: =180
-                  X: =180
-                  Y: =40
             - recPanelDivider:
                 Control: Rectangle@2.3.0
                 Properties:
@@ -2794,6 +3195,144 @@ Screens:
                   PressedFill: =RGBA(98, 100, 167, 1)
                   Width: =1
                   X: =380
+            - galProjectList:
+                Control: Gallery@2.15.0
+                Variant: BrowseLayout_Vertical_TwoTextOneImageVariant_pcfCore
+                Properties:
+                  BorderColor: =RGBA(243, 242, 241, 1)
+                  FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                  FocusedBorderThickness: =2
+                  Height: =648
+                  Items: |-
+                    =SortByColumns(
+                        Filter(
+                            Project_DB,
+                            (IsBlank(ddAccount.Selected.Value) || 업무_계정 = ddAccount.Selected.Value) &&
+                            (ddStatus.Selected.Value = "전체" || 상태 = ddStatus.Selected.Value)
+                        ),
+                        "OData__xd504__xb85c__xc81d__xd2b8__xba",
+                        SortOrder.Ascending
+                    )
+                  TemplateSize: =68
+                  Width: =380
+                  Y: =64
+                Children:
+                  - Title4:
+                      Control: FluentV8/Label@1.8.6
+                      Properties:
+                        Color: =RGBA(30, 30, 30, 1)
+                        Font: =Font.Verdana
+                        FontSize: =12
+                        FontWeight: =FontWeight.Semibold
+                        Height: =24
+                        OnSelect: =Select(Parent)
+                        TabIndex: =-1
+                        Text: =ThisItem.프로젝트명
+                        VerticalAlignment: =VerticalAlign.Top
+                        Width: =260
+                        X: =16
+                        Y: =18
+                  - Subtitle3:
+                      Control: FluentV8/Label@1.8.6
+                      Properties:
+                        Color: =RGBA(130, 130, 130, 1)
+                        Font: =Font.Verdana
+                        FontSize: =9
+                        FontWeight: =FontWeight.Normal
+                        Height: =18
+                        OnSelect: =Select(Parent)
+                        TabIndex: =-1
+                        Text: =ThisItem.업무_계정
+                        VerticalAlignment: =VerticalAlign.Top
+                        Width: =200
+                        X: =16
+                        Y: =2
+                  - Subtitle3_3:
+                      Control: FluentV8/Label@1.8.6
+                      Properties:
+                        Color: =RGBA(160, 160, 160, 1)
+                        Font: =Font.Verdana
+                        FontSize: =9
+                        FontWeight: =FontWeight.Normal
+                        Height: =22
+                        OnSelect: =Select(Parent)
+                        TabIndex: =-1
+                        Text: =Text(ThisItem.시작날짜, "yyyy.mm.dd") & " ~ " & Text(ThisItem.종료날짜, "yyyy.mm.dd")
+                        VerticalAlignment: =VerticalAlign.Top
+                        Width: =220
+                        X: =16
+                        Y: =42
+                  - BadgeCanvas2:
+                      Control: Badge@0.0.24
+                      Properties:
+                        BasePaletteColor: |-
+                          =Switch(
+                              ThisItem.상태,
+                              "시작전",  RGBA(158, 158, 158, 1),
+                              "진행중",  RGBA(30, 136, 229, 1),
+                              "완료",    RGBA(56, 142, 60, 1),
+                              RGBA(200, 200, 200, 1)
+                          )
+                        Content: =ThisItem.상태
+                        Height: =22
+                        Width: =60
+                        X: =304
+                        Y: =28
+                  - recSelectedBar:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(243, 242, 241, 1)
+                        BorderStyle: =BorderStyle.None
+                        BorderThickness: =2
+                        DisabledFill: =RGBA(200, 198, 196, 1)
+                        Fill: =If(ThisItem.IsSelected, RGBA(98, 100, 167, 1), RGBA(0,0,0,0))
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =65
+                        HoverFill: =RGBA(98, 100, 167, 1)
+                        OnSelect: =Select(Parent)
+                        PressedFill: =RGBA(98, 100, 167, 1)
+                        Width: =5
+                  - recItemDivider:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(243, 242, 241, 1)
+                        BorderStyle: =BorderStyle.None
+                        BorderThickness: =2
+                        DisabledFill: =RGBA(200, 198, 196, 1)
+                        Fill: =RGBA(230, 230, 230, 1)
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =1
+                        HoverFill: =RGBA(98, 100, 167, 1)
+                        OnSelect: =Select(Parent)
+                        PressedFill: =RGBA(98, 100, 167, 1)
+                        Width: =380
+                        Y: =68
+                  - Rectangle8:
+                      Control: Rectangle@2.3.0
+                      Properties:
+                        BorderColor: =RGBA(230, 230, 230, 1)
+                        DisabledFill: =RGBA(0,0,0,0)
+                        Fill: =If(ThisItem.IsSelected, RGBA(240, 245, 255, 0), RGBA(255, 255, 255, 0))
+                        FocusedBorderColor: =RGBA(98, 100, 167, 1)
+                        Height: =68
+                        HoverFill: =
+                        OnSelect: |+
+                          =Set(varProjectMode, "View");
+                        PressedFill: =RGBA(0,0,0,0)
+                        TabIndex: =0
+                        Width: =380
+            - ddStatus:
+                Control: ModernCombobox@1.1.1
+                Properties:
+                  DefaultSelectedItems: =["전체"]
+                  Height: =36
+                  ItemDisplayText: =ThisItem.Value
+                  Items: =["전체", "시작전", "진행중", "완료"]
+                  OnChange: =Reset(galProjectList)
+                  SelectMultiple: =false
+                  Width: =168
+                  X: =210
+                  Y: =16
       - conNotice:
           Control: GroupContainer@1.5.0
           Variant: ManualLayout
