@@ -16,7 +16,8 @@
 5. **컬럼명은 문자열로 감싸지 않는다.** `Filter(테이블, 작성자 in ...)` 처럼 컬럼을 직접 참조한다. `"작성자"` 처럼 쌍따옴표로 감싸면 문자열 비교가 되어 필터가 깨진다.
 6. **속성값은 한 줄씩 명확히 준다.** `X=465/Y=124` 같은 함축 표기 금지. 컨트롤 타입·이름·X·Y·Width·Height를 각각 별도 줄로. UI 작업은 STEP별로 적용 → 스크린샷 확인 → 다음 단계로 진행한다.
 7. **내가 준 주석/안내 줄을 그대로 붙여넣는 경우가 있다.** 코드를 줄 때 "이 줄은 지워라" 같은 안내가 실제 코드에 섞이지 않도록, 붙여넣을 최종 코드만 깔끔하게 준다. (다음주 이동 버튼에서 `+7` 후 `-7` 주석이 같이 들어가 제자리로 돌아간 사고 있었음)
-8. **코드가 여러 번 수정되며 꼬이면, 사용자에게 현재 전체 코드를 받아 처음부터 통짜로 다시 준다.** 부분 수정 지시가 누적되면 중복·순서 꼬임이 생긴다. (View_Screen.OnVisible에서 실제로 겪음)
+8. **코드가 여러 번 수정되며 꼬이면, 사용자에게 현재 전체 코드를 받아 처음부터 통짜로 다시 준다.** 부분 수정 지시가 누적되면 중복·순서 꼬임이 생긴다. (View_Screen.OnVisible, DashB_Screen.btnRecalcAttendance에서 실제로 겪음)
+9. **AddColumns 안에서 "다른 컬렉션을 다시 Filter/LookUp하며 바깥 행(row)의 값을 참조"하는 패턴은 스코프가 꼬일 수 있다.** 이 앱에서 실제로 전원 0%/본인만 수백%로 나오는 버그를 겪었다 (§11 작성률 기능, B-13/B-14 참고). 이런 계산은 `AddColumns` 대신 `ForAll(Table As 별칭, ...)`로 행을 명시적으로 고정해서 짠다. 이미 App.OnStart·DashB_Screen.OnVisible의 팀 리스트 생성 로직도 이 패턴을 쓰고 있다.
 
 ---
 
@@ -38,11 +39,11 @@ TYM 중앙기술연구소 내부 업무 관리 앱.
 
 | 파일 | 화면명 | 역할 |
 |------|--------|------|
-| `App.OnStart.powerfx` | 앱 전역 | 전역변수 초기화, 컬렉션 캐싱, 사용자 정보·권한 로드 |
+| `App.OnStart.powerfx` | 앱 전역 | 전역변수 초기화, 컬렉션 캐싱, 사용자 정보·권한 로드, 공휴일 캐시(colKoreaHolidays) |
 | `Daily_Screen.powerfx` | 업무일지 | 날짜별 업무일지 작성/수정/삭제, 달력, Task 추가, 작업_분류 선택 |
 | `Task_Screen.powerfx` | 업무현황 | 칸반보드(시작전/진행중/완료), Task 등록/수정, 프로젝트 관리 모달 |
 | `View_Screen.powerfx` | 업무조회 | 팀별/프로젝트별 주간 매트릭스 조회, 피드백 작성 |
-| `DashB_Screen.powerfx` | 대시보드 | 업무계정/프로젝트/작업분류 분포 차트, KPI, 기간 필터 |
+| `DashB_Screen.powerfx` | 대시보드 | 업무계정/프로젝트/작업분류 분포 차트, KPI, 기간 필터, **작성률(작성률 보기/현황 그래프 보기 토글, §11 참고)** |
 | `cal_Screen.powerfx` | (미사용) | — |
 
 ---
@@ -96,9 +97,9 @@ Project_DB (프로젝트 마스터)
 | 컬럼명 | 타입 | 설명 |
 |--------|------|------|
 | ID | Int | PK |
-| 작성일자 | Date | |
+| 작성일자 | Date(+Time 포함 가능) | ⚠️ 값 비교는 되지만, **같은 날짜인지 그룹핑/중복제거할 때는 반드시 `DateValue()`로 시각을 잘라내고 비교**해야 한다 (§11 B-14 참고) |
 | 작성자 | Text | 이름_한글 |
-| 팀 | Text | UserInfo_DB에서 자동 |
+| 팀 | Text | **UserInfo_DB에서 저장 "당시" 자동 채워짐 — 이후 그 사람 팀이 바뀌어도 과거 레코드의 이 값은 안 바뀜(historical 값)** |
 | 상태 / 업무_계정 / 프로젝트명 / 업무_시작일자 / 업무_종료일자 / 업무제목 / 상세_업무내용 | — | Task_DB 참조 |
 | 작업내용 | Text | 당일 작업 내용 (사용자 직접 입력) |
 | 작업시간 | Int | 당일 작업 시간 (사용자 직접 입력) |
@@ -106,6 +107,7 @@ Project_DB (프로젝트 마스터)
 | 작업_분류 | Text | 업무_계정별 세부 분류 (드롭다운) |
 
 > **이 테이블이 성능의 핵심.** 전체를 Filter로 당기면 2,000건에서 잘린다. **날짜 범위 필터는 위임 가능**하므로, 주간 등 좁은 범위는 Daily_DB 직접 호출이 오히려 정확하다.
+> **네트워크로 받아오는 컬럼 수도 줄일 것.** `ShowColumns(Filter(Daily_DB, ...), 필요한 컬럼만)`으로 감싸면, 안 쓰는 긴 텍스트 컬럼(상세_업무내용·작업내용·피드백 등)까지 안 받아와서 체감 속도가 빨라진다. DashB_Screen의 colTeamPeriodData가 이 방식으로 최적화되어 있다 (§11 참고).
 
 ### UserInfo_DB — 사용자 정보 (103명)
 | 컬럼명 | 타입 | 설명 |
@@ -114,7 +116,7 @@ Project_DB (프로젝트 마스터)
 | 이름_영문 | Text | |
 | e-mail | Text | 소문자 변환 후 `User().Email`과 매칭 |
 | 부문 | Text | **Function / Project** 2개 |
-| 팀 | Text | 가상검증팀, 외장개발팀 등 |
+| 팀 | Text | 가상검증팀, 외장개발팀 등 — **"현재" 소속팀. Daily_DB의 팀 컬럼(historical)과 다를 수 있음** |
 | 직급 | Text | 실제 직급(주임 등) |
 | 직급2 | Text | **앱 권한 제어 핵심** — 팀원 / 팀장 / 부문장 / 소장 |
 | 사번 | Int | PK |
@@ -133,6 +135,7 @@ Project_DB (프로젝트 마스터)
 - 부문은 **Function**과 **Project** 2개, 각 부문에 부문장 1명씩.
 - 권한 판단 변수: `varMyRole`(직급2), `varMyTeam`(팀), `varMyDivision`(부문).
 - ⚠️ **팀원도 팀 전체를 본다.** `colTargetAuthors`의 default 분기가 `Filter(colUsers, 팀 = varMyTeam)`.
+- DashB_Screen의 **작성률 기능도 이 권한 구조를 그대로 재사용**한다 (§11 참고): 소장=전체 팀, 부문장=담당 부문 팀들, 팀장/팀원=본인 팀 팀원별.
 
 ---
 
@@ -157,6 +160,11 @@ Project_DB (프로젝트 마스터)
 | `varShowDeleteConfirm` | Boolean | 프로젝트 삭제 확인 |
 | `varViewLoading` | Boolean | View_Screen 로딩 스피너 |
 | `varShowToast` / `varShowToast2` | Boolean | 토스트 알림 |
+| `varPeriodMode` | Text | DashB_Screen 기간 필터: "저번 주" / "이번 달" / "사용자 지정" (기존 "이번 주"는 "저번 주"로 대체됨, §11) |
+| `varStartDate` / `varEndDate` | Date | DashB_Screen 선택 기간의 시작/종료일 |
+| `varWorkDaysCount` | Number | 선택 기간 중 실제 근무일수 (평일 − 공휴일 − 아직 안 지난 미래일, §11) |
+| `varOverallAttendanceRate` | Number | 지금 보고 있는 화면 범위의 전체 작성률(%) 요약값 (§11) |
+| `varShowNotes` | Boolean | DashB_Screen `conNotesPanel` 표시 여부. **기본값 true — 진입 시 작성률 패널이 먼저 보임.** false면 기존 현황 그래프가 보임 (§11) |
 
 > ⚠️ **`varMyRole` 세팅은 반드시 이메일 기준 LookUp으로.** `User().FullName` 파싱이나 `name_label.Text`에 의존하면 안 됨.
 
@@ -178,9 +186,16 @@ Project_DB (프로젝트 마스터)
 | `colTeamWeekDaily` | Daily_DB | View_Screen 주간 데이터 — Daily_DB 직접 호출(날짜 필터 위임) |
 | `colTeamMatrix` | 가공 | View_Screen 매트릭스용 GroupBy 결과 |
 | `colWorkTagsMap` | 하드코딩 | 업무_계정별 작업_분류 드롭다운 매핑 |
-| `colTeamPeriodData` | Daily_DB | DashB_Screen 기간 데이터 |
-| `colAccAgg` / `colProjChart` / `colWorkTagAgg` | 가공 | DashB 집계 |
-| `colKoreaHolidays` | 하드코딩 | 2025~2030 공휴일 (Daily_Screen 달력 색 처리) |
+| `colTeamPeriodData` | Daily_DB | DashB_Screen 기간 데이터. 역할별 권한 스코프 적용됨(소장=전체/부문장=담당 부문/팀장·팀원=본인 팀). **ShowColumns로 작성일자·작성자·팀·업무_계정·프로젝트명·작업시간·작업_분류·상태 8개 컬럼만 받음** (§11 성능 최적화) |
+| `colAccAgg` / `colProjChart` / `colWorkTagAgg` | 가공 | DashB 차트 집계 |
+| `colKoreaHolidays` | 하드코딩 | 2025~2030 공휴일. **App.OnStart로 이동됨**(과거엔 Daily_Screen.OnVisible에만 있어서, 다른 화면에 먼저 들어가면 비어있는 문제가 있었음) |
+| `colTeamHeadcount` | colUsers | **DashB_Screen 작성률용.** 팀별 인원수(UserInfo_DB 실시간). 김은성·임서현은 이메일 기준 "연구관리팀"으로 강제 고정, 김정훈(계약직)은 제외 (§11) |
+| `colWorkingDays` | 가공 | **DashB_Screen 작성률용.** 선택 기간 중 평일이면서 공휴일이 아니고, 아직 지나지 않은 미래일도 아닌 날짜 목록 (§11) |
+| `colAttendanceDedup` | colTeamPeriodData 가공 | **DashB_Screen 작성률용.** "그 사람이 그 날 썼는지"만 1행/일/인으로 압축(dedup). 팀 귀속은 Daily_DB의 historical 팀이 아니라 **UserInfo_DB의 현재 팀 기준으로 재계산**됨 (§11) |
+| `colTeamAttendanceRate` | colTeamHeadcount + colAttendanceDedup | **DashB_Screen 작성률용.** 소장/부문장이 보는 팀별 작성률 (§11) |
+| `colMemberAttendanceRate` | colUsers + colAttendanceDedup | **DashB_Screen 작성률용.** 팀장/팀원이 보는 팀원 개인별 작성률 (§11) |
+
+> `colTeamPrevPeriodData`(이전 기간 데이터)는 원래 "전 기간 대비 변화 Top3" 위젯 전용이었는데, 그 위젯을 삭제하면서 **완전히 제거됨** (아무도 안 쓰는데 Daily_DB를 한 번 더 호출하고 있었음 — §11 성능 최적화).
 
 ---
 
@@ -214,7 +229,7 @@ If(
 
 ---
 
-## 8. View_Screen 동작 사양 (이번 세션 대폭 개선)
+## 8. View_Screen 동작 사양
 
 ### 팀별 / 프로젝트별 모드
 | 모드 | 프로젝트 목록 소스 | 매트릭스에 보이는 사람 |
@@ -254,7 +269,7 @@ ClearCollect(
 ### ⭐ btnRecalcMatrix 단일화 (R-01 완료)
 - 숨김 버튼 `btnRecalcMatrix`(Visible=false)에 재계산 로직을 모음: `colDeselectedProjects_View` 초기화 → `colTeamWeekDaily` 재로드 → `colProjectList` 재계산 → `colTeamMatrix` 재계산.
 - **주 이동 버튼(icPrev/icnNext/ButtonCanvas4_1)·달력 클릭(gal_Calendar_Days_1)** 은 `vw_StartOfWeek` 변경 후 `Select(btnRecalcMatrix)` 한 줄만 호출.
-- ⚠️ **단, `View_Screen.OnVisible`에서는 `Select(btnRecalcMatrix)`를 쓰지 않는다.** OnVisible은 버튼 렌더링 전에 실행되어 `Select()`가 무시될 수 있음 → OnVisible에서는 재계산 로직을 **직접(inline)** 실행한다.
+- ⚠️ **단, `View_Screen.OnVisible`에서는 `Select(btnRecalcMatrix)`를 쓰지 않는다.** OnVisible은 버튼 렌더링 전에 실행되어 `Select()`가 무시될 수 있음 → OnVisible에서는 재계산 로직을 **직접(inline)** 실행한다. **이 원칙은 DashB_Screen의 작성률 기능(§11, btnRecalcAttendance)에서도 그대로 재확인됨.**
 
 ### OnVisible 순차 실행 원칙
 `colTeamWeekDaily`(비동기) → `colProjectList` → `colTeamMatrix` 순서를 엄격히 지킨다. `Concurrent`로 묶지 말 것.
@@ -281,7 +296,7 @@ ClearCollect(
 
 ---
 
-## 10. 프로젝트 관리 모달 (conProjectModal) — 2패널 완성 (이번 세션 완료)
+## 10. 프로젝트 관리 모달 (conProjectModal) — 2패널 완성
 
 업무현황 화면의 `btnProjectManage`로 여는 프로젝트 마스터(Project_DB) 관리 모달. Form 컨트롤 제거, Patch 방식.
 
@@ -302,7 +317,7 @@ conProjectModal (1280 × 720, X=80, Y=40)
     └── [바디 우] 프로젝트 현황: D-day / 진행률 바 / 등록일
 ```
 
-### 좌측 갤러리 카드형 디자인 (이번 세션)
+### 좌측 갤러리 카드형 디자인
 - `TemplateHeight = 76`. 카드 안: 업무_계정(상단 회색) / 프로젝트명(메인 Semibold) / 날짜 범위(하단 회색) / 상태 뱃지(우측) / 선택 강조 세로 바(recSelectedBar, `ThisItem.IsSelected`) / 카드 구분선(recItemDivider).
 
 ### 모드 토글 패턴
@@ -358,7 +373,56 @@ SortByColumns(
 
 ---
 
-## 11. 알려진 버그 목록
+## 11. DashB_Screen — 작성률(Attendance Rate) 기능 사양
+
+상부 지시로, 업무일지 작성률을 확인할 수 있도록 대시보드에 추가된 기능. 기존 "자세히"(`ButtonCanvas6`) 펼치기 패널(`conNotesPanel`) 안에 있던 KPI 4종(총 작업시간/1인평균/진행중업무/활성프로젝트)과 "전 기간 대비 변화 Top3" 위젯을 **전부 삭제**하고, 그 자리를 작성률 화면으로 교체했다.
+
+### 진입 동작
+- `varShowNotes` 기본값이 `true`로 바뀌어서, **대시보드 진입 시 작성률 패널이 기본으로 펼쳐져 보인다.**
+- `ButtonCanvas6` 버튼 텍스트: `varShowNotes=true`(작성률 보이는 중)이면 "현황 그래프 보기", `false`이면 "작성률 보기".
+- `varShowNotes=false`로 접으면 기존 KPI/차트 화면(현황 그래프)이 보인다.
+
+### 권한별 확인 범위 (§4 권한 구조 재사용)
+| 직급2 | 확인 범위 | 표시 컨트롤 |
+|-------|----------|-------------|
+| 소장 | 전체 팀의 작성률 | `galAttendanceTeam` (팀명 + 진행률 바 + %) |
+| 부문장 | 담당 부문(Function/Project) 소속 팀들의 작성률 | `galAttendanceTeam` |
+| 팀장 / 팀원 | 본인 팀 팀원별 작성률 | `galAttendanceMember` (이름 + 진행률 바 + %) |
+
+- `lblOverallAttendanceRate`: 지금 보고 있는 범위 전체의 합산 작성률 1개를 상단에 표시(`varOverallAttendanceRate`). 소장/부문장은 팀 합산, 팀장/팀원은 팀원 합산.
+
+### 조회 기간 필터 (기존 `Con_Filter_1` 그대로 공유)
+- `rdoPeriodMode` Items: `["저번 주", "이번 달", "사용자 지정"]`. **기존 "이번 주"는 완전히 "저번 주"(월~금)로 대체됨** — 실무에서 작성률은 지난주가 마감된 뒤 확인하는 경우가 많아서.
+- `dpStart`/`dpEnd`: "사용자 지정" 선택 시에만 편집 가능.
+- `btnRefresh`("조회" 버튼)를 누르면 `varStartDate`/`varEndDate`/`varPeriodMode`가 갱신되고, `colTeamPeriodData` 재로딩 + `Select(btnRecalcDash)` + `Select(btnRecalcAttendance)`가 실행된다.
+
+### 작성률 계산 원칙 (핵심)
+근무일수 = 선택 기간 중 **평일이면서, 공휴일이 아니고, 아직 지나지 않은 미래일도 아닌** 날짜 수.
+- 공휴일: `colKoreaHolidays`(App.OnStart로 이동, §6). "이번 달"처럼 아직 다 안 지난 기간을 선택해도, 국가 공휴일은 정확히 제외된다.
+- 미래일 제외: 근무일 계산 종료 기준을 `Min(varEndDate, Today())`로 잡는다. 이게 없으면 "이번 달"(9/30까지) 선택 시 9/15~9/30처럼 아직 안 지난 날짜까지 "안 쓴 날"로 잡혀서 작성률이 실제보다 낮게 나온다 (B-16).
+
+실제 작성 건수 = Daily_DB에서 "그 사람이 그 날 하나라도 썼는지"만 카운트(시간 무관, 하루에 여러 건 써도 1건). `colTeamPeriodData`에서 `DateValue(작성일자)`로 시각을 잘라낸 뒤 (작성일자, 작성자)로 GroupBy해서 dedup한다 (`colAttendanceDedup`). **원본 `작성일자`를 그대로 GroupBy 키로 쓰면 안 됨** — 시각까지 포함된 값이라 같은 날 다른 시각에 쓴 기록이 안 묶여서 dedup이 실패하고 작성률이 100%를 초과하는 버그가 생긴다 (B-14).
+
+팀 귀속(그 사람의 작성 실적을 어느 팀 몫으로 잡을지)은 **Daily_DB에 저장된 historical 팀이 아니라, UserInfo_DB의 "현재" 팀 기준으로 매번 다시 계산**한다 (`colAttendanceDedup`의 팀 컬럼). 그래야 테스트·실제 이동으로 사람을 다른 팀으로 옮겼을 때 분자(실적)·분모(인원수)가 같은 기준으로 동시에 반영된다 (B-15). 팀별 인원수(`colTeamHeadcount`)도 UserInfo_DB를 실시간으로 세되:
+- **김은성(eunseong.kim@tym.world)·임서현(e2603003@tym.world)**: 개발 확인용으로 팀을 임시로 바꿔도, 이메일 기준으로 항상 "연구관리팀"으로 고정 집계.
+- **김정훈(jung.kim@tym.world)**: 계약직으로 업무현황판을 쓰지 않으므로, 팀 인원수·팀원 개인별 리스트 양쪽에서 제외.
+
+### 관련 컬렉션 (§6에도 기재)
+`colTeamHeadcount` → `colWorkingDays` → `colAttendanceDedup` → `colTeamAttendanceRate`/`colMemberAttendanceRate` → `varOverallAttendanceRate` 순서로 계산된다. 전체 로직은 숨김 버튼 `btnRecalcAttendance`(Visible=false)의 `OnSelect`에 모여 있다.
+
+### ⚠️ OnVisible에서는 `Select(btnRecalcAttendance)`를 쓰지 않는다
+View_Screen의 `btnRecalcMatrix`와 똑같은 이유(§8)로, `DashB_Screen.OnVisible`이 실행되는 시점엔 아직 버튼이 완전히 렌더링되기 전이라 `Select()`가 무시될 수 있다. 그래서 **`DashB_Screen.OnVisible`에는 `btnRecalcAttendance.OnSelect`의 코드 전체를 그대로 복사해서 inline으로 넣는다.** `btnRefresh`(조회 버튼)에서는 `Select(btnRecalcAttendance)`로 정상 동작하므로 그대로 둔다.
+
+**⚠️ 유지보수 시 주의: 작성률 계산 로직은 `btnRecalcAttendance.OnSelect`와 `DashB_Screen.OnVisible` 두 곳에 동일하게 존재한다.** 로직을 고칠 일이 생기면 반드시 두 곳을 함께 수정해야 한다. 하나만 고치면 "화면 진입 시"와 "조회 버튼 눌렀을 때" 결과가 서로 달라지는 새 버그가 생긴다.
+
+### 성능 최적화 (이번에 함께 처리)
+- `colTeamPrevPeriodData`(이전 기간 데이터) 완전히 제거. 원래 "전 기간 대비 변화 Top3" 위젯 전용이었는데, 그 위젯을 삭제하면서 아무도 안 쓰는 Daily_DB 호출이 매번 한 번 더 일어나고 있었음 — 소장 화면 기준 네트워크 호출이 사실상 절반으로 줄어듦.
+- `colTeamPeriodData`를 `ShowColumns(Filter(Daily_DB, ...), 작성일자, 작성자, 팀, 업무_계정, 프로젝트명, 작업시간, 작업_분류, 상태)`로 감싸서, 대시보드에서 안 쓰는 긴 텍스트 컬럼(상세_업무내용/작업내용/피드백/업무제목 등)은 아예 안 받아오게 함.
+- (검토했으나 보류) 화면 진입/조회 시 로딩 스피너: PowerApps 네이티브 `Screen.LoadingSpinner` 속성이 있으나 네트워크 호출 구간에만 반응하고 로컬 계산(GroupBy/ForAll) 구간엔 반응 안 함. 커스텀 오버레이(변수+사각형)로 전체 구간을 덮는 방법도 검토했으나, 이번 세션에서는 적용하지 않기로 하고 보류함(§14).
+
+---
+
+## 12. 알려진 버그 목록
 
 | 번호 | 화면 | 버그 | 상태 |
 |------|------|------|------|
@@ -374,50 +438,57 @@ SortByColumns(
 | B-10 | View_Screen | 달력 클릭 시 프로젝트/Task 누락 | ✅ 해결 — 달력 OnSelect에 Select(btnRecalcMatrix) 추가 |
 | B-11 | View_Screen | 최초 진입 시 나중에 뜬 프로젝트 체크 안됨 (비동기 타이밍) | ✅ 해결 — colDeselectedProjects_View 방식 |
 | B-12 | Task_Screen | "0으로 나누기" 에러 (진행률 계산) | ✅ 해결 — 세 곳 모두 total<=0 예외 처리 |
+| B-13 | DashB_Screen | 작성률 팀원 개인별 화면에서 본인 제외 전원 0%로 나옴 | ✅ 해결 — `AddColumns`로 다른 컬렉션을 재필터하던 부분을 `ForAll(Table As 별칭, ...)` 패턴으로 교체 |
+| B-14 | DashB_Screen | 하루에 여러 건 작성한 사람의 작성률이 100% 초과 | ✅ 해결 — GroupBy 전에 `DateValue()`로 시각을 제거한 DayOnly 컬럼을 만들어 그 값으로 그룹핑 |
+| B-15 | DashB_Screen | 테스트로 사람을 다른 팀에 옮기면, 원래 팀 작성률은 오히려 오르고 옮긴 팀은 내려감 | ✅ 해결 — 작성 실적의 팀 귀속을 Daily_DB의 historical 팀이 아니라 UserInfo_DB의 현재 팀 기준으로 재계산 |
+| B-16 | DashB_Screen | "이번 달" 선택 시 아직 지나지 않은 날짜까지 근무일에 포함되어 작성률이 실제보다 낮게 나옴 | ✅ 해결 — 근무일 계산 종료 기준을 `Min(varEndDate, Today())`로 제한 |
+| B-17 | DashB_Screen | 대시보드 최초 진입 시 작성률이 안 뜨고 조회 버튼을 눌러야만 나옴 | ✅ 해결 — OnVisible에서 `Select(btnRecalcAttendance)` 대신 로직을 inline으로 직접 실행 |
 
 ---
 
-## 12. 개발 예정 목록
+## 13. 개발 예정 목록
 
 | 번호 | 분류 | 내용 |
 |------|------|------|
 | F-01 | 개발 | 연장근로 시스템 (사전/사후 신청 화면) |
 | F-02 | 개발 | 26년 사업 계획 프로젝트 — 종료분 완료 처리, 진행중만 표시 |
 | F-03 | 개발 | 그래프 색 구분 |
-| F-04 | 개발 | 팀별 작성률 표시 |
+| F-04 | 개발 | 팀별 작성률 표시 | ✅ 완료 (§11 DashB_Screen 작성률 기능) |
 | F-06 | 개발 | 연차(반차) 색 처리 — Daily_Screen 빨간색 표시 |
 | F-07 | 개발 | 출장 시스템 (작업_분류에 "출장" 항목 추가됨) |
 | F-08 | 개발 | 연차 시스템 |
 | F-09 | 개발 | 공지 시스템 |
 | F-10 | 개발 | 기타·미분류 건 인원별 정리 (진행중) |
+| F-11 | 개발(보류) | DashB_Screen 로딩 스피너 — 네이티브 LoadingSpinner + 로컬 계산 구간용 커스텀 오버레이 병행 검토했으나 이번엔 보류 |
 | R-01 | 리팩토링 | View_Screen 매트릭스 재계산 단일화 → ✅ 완료 (btnRecalcMatrix) |
 | R-02 | 리팩토링 | 모든 `name_label.Text` → `varMyName` 통일 잔여분 점검 |
 | P-01 | 성능 | App.OnStart 최적화 — Daily_DB 2,000건 한도 구조 개선 |
 
 ---
 
-## 13. 이번 세션 완료 작업 (요약)
+## 14. 이번 세션 완료 작업 (요약)
 
-1. **프로젝트 관리 모달 완성** — 신규/편집 모드 값 초기화, 편집 중 신규 버튼 숨김, 연구관리팀 전용 권한(btnNewProject/btnEdit Visible), 0으로 나누기 오류 수정. TextInput `.Text`·콤보박스 `Default` 문자열 버전 이슈 정리.
-2. **좌측 갤러리 카드형 재디자인** — TemplateHeight 76, 프로젝트명 메인 + 업무계정/날짜 서브 + 상태 뱃지 + 선택 강조 세로 바.
-3. **팀별 프로젝트 누락 해결(B-09)** — colProjectList를 Task_DB(위임 한계)에서 colTeamWeekDaily 기반으로 전환.
-4. **달력 클릭 누락 해결(B-10)** — gal_Calendar_Days_1 OnSelect에 Select(btnRecalcMatrix) 추가.
-5. **비동기 타이밍 체크 문제 해결(B-11)** — colSelProjects → colDeselectedProjects_View(해제 추적)로 전환. 최초 진입 시에도 전체 선택 유지.
-6. **btnRecalcMatrix 단일화(R-01 완료)** — 주 이동·달력 클릭은 Select(btnRecalcMatrix), OnVisible은 inline 직접 실행(렌더링 타이밍).
-7. **업데이트 안내 메일 초안** 작성.
+1. **DashB_Screen 작성률(Attendance Rate) 기능 신규 개발 (F-04)** — 소장/부문장/팀장 권한별 작성률 확인, 저번 주/이번 달/사용자 지정 필터, 팀별·개인별 진행률 바 + % 리스트, 전체 작성률 요약. 상세는 §11.
+2. **colKoreaHolidays를 App.OnStart로 이동** — Daily_Screen을 안 거치고 바로 대시보드로 들어가도 공휴일 데이터가 항상 준비되도록.
+3. **작성률 관련 버그 4건 해결(B-13~B-16)** — AddColumns 스코프 문제(전원 0%), GroupBy 시각 포함 문제(100% 초과), 팀 이동 시 historical vs real-time 팀 불일치(분자·분모 반대로 움직임), "이번 달" 선택 시 미래일 포함 문제.
+4. **DashB_Screen 최초 진입 시 작성률 미표시 문제 해결(B-17)** — View_Screen과 동일한 "OnVisible에서는 Select() 대신 inline 실행" 원칙 재적용.
+5. **DashB_Screen 성능 최적화** — 아무도 안 쓰던 colTeamPrevPeriodData 완전 제거, colTeamPeriodData ShowColumns로 컬럼 축소.
+6. **로딩 스피너 검토 후 보류(F-11)** — 네이티브 LoadingSpinner의 한계(로컬 계산 구간 미반응) 확인, 이번 세션에서는 적용하지 않기로 함.
+7. **작성률 기능 안내 메일 초안 작성** — 소장/부문장/팀장 대상.
 
 ---
 
-## 14. 다음 세션 우선순위 (추천)
+## 15. 다음 세션 우선순위 (추천)
 
 1. **F-06 — 연차/반차 Daily_Screen 색 처리** (자동 시간 입력은 완료, 시각 표시만 남음).
 2. **F-10 — 기타·미분류 건 인원별 정리** (진행 중).
 3. **R-02 — name_label.Text → varMyName 잔여분 점검** (B-06 완전 마무리).
 4. **P-01 — App.OnStart / Daily_DB 2,000건 한도 구조 개선** (근본 성능 과제).
+5. **F-11 — DashB_Screen 로딩 스피너** (필요하면 재검토. 네이티브 LoadingSpinner만 켤지, 커스텀 오버레이까지 같이 둘지 결정 필요).
 
 ---
 
-## 15. 세션 시작 방법
+## 16. 세션 시작 방법
 
 ```
 1. 이 CLAUDE.md 첨부
@@ -435,3 +506,4 @@ SortByColumns(
 - 코드가 꼬이면 전체 코드를 받아 통짜로 다시 제공
 - Delegation·성능 경고는 항상 선제적으로
 - 더 나은 구조가 있으면 코드 전에 먼저 제안
+- 여러 컬렉션을 조합해 집계할 때는 `AddColumns` 중첩 Filter보다 `ForAll(Table As 별칭, ...)`을 기본으로 고려 (§0-9, B-13/B-14)
