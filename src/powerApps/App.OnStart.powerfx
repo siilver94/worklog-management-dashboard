@@ -3,6 +3,165 @@
 Set(varAppReady, true);
 
 
+
+//--- 30년 01월 01일까지 공휴일//
+
+ClearCollect(
+    colKoreaHolidays,
+
+    // ===== 2025년 =====
+    // 설날 (음력 1/1 → 추정 2025-01-29 본행사)
+    {HolidayDate: Date(2025,1,28)}, // 설 전날
+    {HolidayDate: Date(2025,1,29)}, // 설 당일
+    {HolidayDate: Date(2025,1,30)}, // 설 다음날
+
+    // 3.1절
+    {HolidayDate: Date(2025,3,1)},
+    // 어린이날 (5/5), 예시: (5/6) 추가 가능 (사용자 예시)
+    {HolidayDate: Date(2025,5,1)},
+    {HolidayDate: Date(2025,5,5)},
+    {HolidayDate: Date(2025,5,6)},
+    // 부처님오신날(음력 4/8 → 양력 2025-5-6 추정) 
+    // 주의: 5/5~5/6와 겹칠 가능성 높음 -> 정확 발표 참고
+    
+    // 대통령 선거일
+    {HolidayDate: Date(2025,6,3)},
+    // 현충일
+    {HolidayDate: Date(2025,6,6)},
+    // 광복절
+    {HolidayDate: Date(2025,8,15)},
+    // 추석(음력 8/15 → 추정 2025-10-5 당일)
+    {HolidayDate: Date(2025,10,3)}, // 추석 전날
+    {HolidayDate: Date(2025,10,4)}, // 추석 전날
+    {HolidayDate: Date(2025,10,5)}, // 추석 당일
+    {HolidayDate: Date(2025,10,6)}, // 추석 다음날
+{HolidayDate: Date(2025,10,7)},
+{HolidayDate: Date(2025,10,8)},
+
+   
+    {HolidayDate: Date(2025,10,9)},
+    // 성탄절
+    {HolidayDate: Date(2025,12,25)},
+
+    // ===== 2026년 =====
+    // 신정
+    {HolidayDate: Date(2026,1,1)},
+    // 설날 (음력 1/1 → 추정 2026-02-17)
+    {HolidayDate: Date(2026,2,16)},
+    {HolidayDate: Date(2026,2,17)},
+    {HolidayDate: Date(2026,2,18)},
+    {HolidayDate: Date(2026,2,19)},
+    // 3.1절
+    {HolidayDate: Date(2026,3,1)},
+    {HolidayDate: Date(2026,3,2)},
+    // 어린이날
+
+    {HolidayDate: Date(2026,5,1)},
+    {HolidayDate: Date(2026,5,5)},
+    // 부처님오신날(음력 4/8 → 추정 2026-5-25 정도)
+    {HolidayDate: Date(2026,5,25)},
+    // 현충일
+    {HolidayDate: Date(2026,6,3)},
+    {HolidayDate: Date(2026,6,6)},
+        // 워크샵
+    {HolidayDate: Date(2026,6,18)},
+    {HolidayDate: Date(2026,6,19)},
+    // 광복절
+    {HolidayDate: Date(2026,8,15)},
+    // 추석 (음력 8/15 → 추정 2026-9-25)
+    {HolidayDate: Date(2026,9,24)},
+    {HolidayDate: Date(2026,9,25)},
+    {HolidayDate: Date(2026,9,26)},
+    {HolidayDate: Date(2026,9,28)},
+    // 개천절
+    {HolidayDate: Date(2026,10,3)},
+    // 한글날
+    {HolidayDate: Date(2026,10,9)},
+    // 성탄절
+    {HolidayDate: Date(2026,12,25)},
+
+    // ===== 2027년 =====
+    // 신정
+    {HolidayDate: Date(2027,1,1)},
+    // 설날(추정 2027-2-6)
+   
+    {HolidayDate: Date(2027,2,6)},
+    {HolidayDate: Date(2027,2,7)},
+    {HolidayDate: Date(2027,2,8)},
+    // 3.1절
+    {HolidayDate: Date(2027,3,1)},
+    // 어린이날
+    {HolidayDate: Date(2027,5,1)},
+    {HolidayDate: Date(2027,5,5)},
+    // 부처님오신날(음력 4/8 → 추정 2027-5-14)
+    {HolidayDate: Date(2027,5,13)},
+    // 현충일
+    {HolidayDate: Date(2027,6,7)},
+
+    // 광복절
+    {HolidayDate: Date(2027,8,16)},
+    // 추석(추정 2027-9-15)
+    {HolidayDate: Date(2027,9,14)},
+    {HolidayDate: Date(2027,9,15)},
+    {HolidayDate: Date(2027,9,16)},
+    // 개천절
+    {HolidayDate: Date(2027,10,4)},
+    // 한글날
+    {HolidayDate: Date(2027,10,9)},
+    // 성탄절
+    {HolidayDate: Date(2027,12,25)},
+    {HolidayDate: Date(2027,12,27)},
+
+    // ===== 2028년 =====
+    {HolidayDate: Date(2028,1,1)},
+    // 설날(추정 2028-1-26)
+ 
+    {HolidayDate: Date(2028,1,26)},
+    {HolidayDate: Date(2028,1,27)},
+    {HolidayDate: Date(2028,1,28)},
+    {HolidayDate: Date(2028,3,1)},
+    {HolidayDate: Date(2028,5,5)}, // 어린이날
+    // 부처님오신날(음력 4/8 → 추정 2028-5-2)
+    {HolidayDate: Date(2028,5,1)},
+    {HolidayDate: Date(2028,5,2)},
+    {HolidayDate: Date(2028,6,6)},
+    {HolidayDate: Date(2028,8,15)},
+    // 추석(추정 2028-10-4)
+    {HolidayDate: Date(2028,10,2)},
+    {HolidayDate: Date(2028,10,3)},
+    {HolidayDate: Date(2028,10,4)},
+    {HolidayDate: Date(2028,10,5)},
+
+    {HolidayDate: Date(2028,10,9)}, // 한글날
+    {HolidayDate: Date(2028,12,25)},// 성탄절
+
+    // ===== 2029년 =====
+    {HolidayDate: Date(2029,1,1)},
+    // 설날(추정 2029-2-13)
+    {HolidayDate: Date(2029,2,12)},
+    {HolidayDate: Date(2029,2,13)},
+    {HolidayDate: Date(2029,2,14)},
+    {HolidayDate: Date(2029,3,1)},
+    {HolidayDate: Date(2029,5,5)}, // 어린이날
+    // 부처님오신날(음력 4/8 → 추정 2029-5-21)
+    {HolidayDate: Date(2029,5,21)},
+    {HolidayDate: Date(2029,6,6)},
+    {HolidayDate: Date(2029,8,15)},
+    // 추석(추정 2029-9-24)
+    {HolidayDate: Date(2029,9,21)},
+    {HolidayDate: Date(2029,9,22)},
+    {HolidayDate: Date(2029,9,24)},
+    
+    {HolidayDate: Date(2029,10,3)},
+    {HolidayDate: Date(2029,10,9)},
+    {HolidayDate: Date(2029,12,25)},
+
+    // ===== 2030년 =====
+    {HolidayDate: Date(2030,1,1)}
+);
+
+
+
 //// ── 0. 날짜·상태 기본 변수 ─────────────────────
 //Set(varSelProject, "");
 Set(varYear,  Year(Today()));
@@ -16,7 +175,6 @@ Set(SelectedItem , {});
 Set(varFilterMode, "All");
 Set(varToastMessage, "");  Set(varShowToast , false);
 Set(varToastMessage2,"");  Set(varShowToast2, false);
-
 Set(varSelectedAccount, "");
 
 // 타입 고정용 (업무_계정은 텍스트니까 문자열로)
@@ -163,7 +321,9 @@ ClearCollect(
         {Account:"기타업무", Tag:"행정", Order:3},
         {Account:"기타업무", Tag:"지원업무", Order:4},
         {Account:"기타업무", Tag:"CAE", Order:5},
-        {Account:"기타업무", Tag:"기타", Order:6},
+        {Account:"기타업무", Tag:"필드 이슈 대응", Order:6},
+        {Account:"기타업무", Tag:"양산 이슈 대응", Order:7},
+        {Account:"기타업무", Tag:"기타", Order:8},
 
         // ── 연차(반차) : 세트 B ──
         {Account:"연차(반차)", Tag:"— 미선택 —", Order:0},
@@ -217,6 +377,20 @@ ClearCollect(
         {Account:"연구관리_엔진시험관리", Tag:"시설/장비관리", Order:2},
         {Account:"연구관리_엔진시험관리", Tag:"안전관리", Order:3},
         {Account:"연구관리_엔진시험관리", Tag:"기타", Order:4},
+
+        // ── 연구관리 : ISO관리 ──
+        {Account:"연구관리_ISO관리", Tag:"— 미선택 —", Order:0},
+        {Account:"연구관리_ISO관리", Tag:"회의", Order:1},
+        {Account:"연구관리_ISO관리", Tag:"문서/보고", Order:2},
+        {Account:"연구관리_ISO관리", Tag:"지원업무", Order:3},
+        {Account:"연구관리_ISO관리", Tag:"기타", Order:4},
+
+        // ── 연구관리 : 안전보건관리 ──
+        {Account:"연구관리_안전보건관리", Tag:"— 미선택 —", Order:0},
+        {Account:"연구관리_안전보건관리", Tag:"회의", Order:1},
+        {Account:"연구관리_안전보건관리", Tag:"문서/보고", Order:2},
+        {Account:"연구관리_안전보건관리", Tag:"지원업무", Order:3},
+        {Account:"연구관리_안전보건관리", Tag:"기타", Order:4},
 
          // ── 출장 ──
         {Account:"출장", Tag:"필드 클레임", Order:0},
