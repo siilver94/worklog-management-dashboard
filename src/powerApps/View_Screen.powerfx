@@ -284,7 +284,7 @@ Screens:
                         CountRows(
                             Filter(
                                 colDaily_365_Team,                          /* 올해+내 팀 캐시 */
-                                DateValue(OData__xc791__xc131__xc77c__xc790_) = DateValue(Value)
+                                DateValue(작성일자) = DateValue(Value)
                             )
                         ) > 0
                     )
@@ -393,8 +393,8 @@ Screens:
                               colWeek,
                               Filter(
                                   colDaily_365_Team,
-                                  OData__xc791__xc131__xc77c__xc790_ >= vw_StartOfWeek &&
-                                  OData__xc791__xc131__xc77c__xc790_ <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days)
+                                  작성일자 >= vw_StartOfWeek &&
+                                  작성일자 <= DateAdd(vw_StartOfWeek, 4, TimeUnit.Days)
                               )
                           );
 
