@@ -1,0 +1,4 @@
+tools/sensitive_terms.local.txt
+__pycache__/
+*.local.*
+.DS_Store
