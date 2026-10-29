@@ -11,5 +11,8 @@ CREATE TABLE Daily_DB (
     업무제목 VARCHAR(255),
     상세_업무내용 VARCHAR(1000),
     작업내용 VARCHAR(1000),
-    작업시간 INT
+    작업시간 INT,
+    작성자 VARCHAR(100),
+    작업_분류 VARCHAR(100),
+    피드백 VARCHAR(1000)
 );
