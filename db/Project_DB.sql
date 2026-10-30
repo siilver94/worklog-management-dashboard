@@ -10,10 +10,6 @@ CREATE TABLE Project_DB (
     시작날짜 DATE,
     종료날짜 DATE,
     비고 VARCHAR(500),
-    금액_견본 INT,
-    금액_용역 INT,
-    금액_시작품 INT,
-    금액_특허 INT,
-    금액_신뢰성 INT,
-    금액_WPBC INT
+    금액_항목1 INT,   -- 예산 항목별 금액 컬럼 (공개용으로 항목명 생략)
+    금액_항목2 INT
 );
