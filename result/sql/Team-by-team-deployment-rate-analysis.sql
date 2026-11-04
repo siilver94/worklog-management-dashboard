@@ -18,8 +18,8 @@ raw0 AS (
   WHERE 작성자 IS NOT NULL
     AND TRIM(작성자) <> ''
     AND TRIM(작성자) NOT IN (
-      '김승동','윤원병','김정훈','문종태','이병혁','이혜광','홍이수','김은성',
-      '고지호','박형남','윤광덕','임승진','이해림','강경식'
+      '사용자14','사용자18','미사용자C','사용자19','사용자20','사용자21','사용자22','개발자A',
+      '사용자23','사용자24','사용자25','사용자26','사용자27','사용자28'
     )
 ),
 
@@ -30,8 +30,8 @@ raw AS (
     person,
     team,
     CASE
-      WHEN cat_raw = '기타업무' AND proj_raw IN ('국내 인증(엔진)','국외 인증(엔진)','엔진시험','검정/인증')
-        THEN '제품개발(엔진)'
+      WHEN cat_raw = '기타업무' AND proj_raw IN ('국내 인증(제품A)','국외 인증(제품A)','제품A시험','검정/인증')
+        THEN '제품개발(제품A)'
       WHEN TRIM(COALESCE(cat_raw,'')) = '' THEN '(미지정계정)'
       ELSE cat_raw
     END AS cat,
@@ -44,8 +44,8 @@ raw AS (
   WHERE d IS NOT NULL
     AND (
       COALESCE(cat_raw,'') NOT IN ('TF','교육','기타업무','연차(반차)')
-      OR (cat_raw = 'TF' AND proj_raw <> '3D데이터 정비 및 사양관리')
-      OR (cat_raw = '기타업무' AND proj_raw IN ('국내 인증(엔진)','국외 인증(엔진)','엔진시험','검정/인증'))
+      OR (cat_raw = 'TF' AND proj_raw <> 'TF 프로젝트X')
+      OR (cat_raw = '기타업무' AND proj_raw IN ('국내 인증(제품A)','국외 인증(제품A)','제품A시험','검정/인증'))
     )
     AND COALESCE(cat_raw,'') NOT IN ('교육','연차(반차)')
 ),
